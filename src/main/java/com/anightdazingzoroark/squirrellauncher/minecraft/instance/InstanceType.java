@@ -18,26 +18,31 @@ public enum InstanceType {
     VANILLA(
             new VanillaInstaller(),
             instance -> SquirrelLauncher.VERSION,
-            (instance, installRoot) -> LaunchDefinition.vanilla()
+            (instance, installRoot) -> LaunchDefinition.vanilla(),
+            false
     ),
     FORGE(
             new ForgeInstaller(),
             MinecraftInstance::loaderVersion,
-            (instance, installRoot) -> LaunchDefinition.forge(instance)
+            (instance, installRoot) -> LaunchDefinition.forge(instance),
+            true
     ),
     CLEANROOM(
             new CleanroomInstaller(),
             MinecraftInstance::loaderVersion,
-            LaunchDefinition::cleanroom
+            LaunchDefinition::cleanroom,
+            true
     );
 
     @NotNull
     public final BiFunction<MinecraftAccount, MinecraftInstance, Process> instanceCreator;
+    public final boolean hasMods;
 
     InstanceType(
             @NotNull AbstractInstaller installer,
             @NotNull Function<MinecraftInstance, String> versionResolver,
-            @NotNull LaunchDefinitionFactory definitionFactory
+            @NotNull LaunchDefinitionFactory definitionFactory,
+            boolean hasMods
     ) {
         this.instanceCreator = (account, instance) -> {
             try {
@@ -49,6 +54,7 @@ public enum InstanceType {
                 throw new RuntimeException(e);
             }
         };
+        this.hasMods = hasMods;
     }
 
     @FunctionalInterface
