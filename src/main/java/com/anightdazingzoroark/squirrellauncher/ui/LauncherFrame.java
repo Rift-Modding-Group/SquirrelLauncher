@@ -1,7 +1,8 @@
 package com.anightdazingzoroark.squirrellauncher.ui;
 
 import com.anightdazingzoroark.squirrellauncher.SquirrelLauncher;
-import com.anightdazingzoroark.squirrellauncher.launcher.InstanceCreationRequest;
+import com.anightdazingzoroark.squirrellauncher.launcher.InstanceAdditionRequest;
+import com.anightdazingzoroark.squirrellauncher.launcher.InstanceNames;
 import com.anightdazingzoroark.squirrellauncher.launcher.LauncherService;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MinecraftAccount;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
@@ -18,9 +19,11 @@ import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
@@ -41,6 +44,9 @@ import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.Rectangle;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.nio.file.Path;
@@ -59,9 +65,12 @@ public final class LauncherFrame extends JFrame {
 
     private final DefaultListModel<MinecraftInstance> instanceModel = new DefaultListModel<>();
     private final JList<MinecraftInstance> instanceList = new JList<>(this.instanceModel);
-    private final JButton createInstanceButton = new JButton("New instance");
-    private final JButton deleteInstanceButton = new JButton("Delete");
+    private final JButton addInstanceButton = new JButton("Add new instance");
     private final JButton refreshInstancesButton = new JButton("Refresh");
+    private final JPopupMenu instanceActionsMenu = new JPopupMenu();
+    private final JMenuItem renameInstanceItem = new JMenuItem("Rename…");
+    private final JMenuItem exportInstanceItem = new JMenuItem("Export…");
+    private final JMenuItem deleteInstanceItem = new JMenuItem("Delete…");
 
     private final JLabel accountLabel = new JLabel();
     private final JTextField usernameField = new JTextField("Squirrel", 12);
@@ -167,8 +176,7 @@ public final class LauncherFrame extends JFrame {
         panel.add(new JScrollPane(this.instanceList), BorderLayout.CENTER);
 
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        actions.add(this.createInstanceButton);
-        actions.add(this.deleteInstanceButton);
+        actions.add(this.addInstanceButton);
         actions.add(this.refreshInstancesButton);
         panel.add(actions, BorderLayout.SOUTH);
         return panel;
@@ -277,6 +285,27 @@ public final class LauncherFrame extends JFrame {
         this.instanceList.addListSelectionListener(event -> {
             if (!event.getValueIsAdjusting()) showSelectedInstance();
         });
+        this.instanceActionsMenu.add(this.renameInstanceItem);
+        this.instanceActionsMenu.add(this.exportInstanceItem);
+        this.instanceActionsMenu.addSeparator();
+        this.instanceActionsMenu.add(this.deleteInstanceItem);
+        this.instanceList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(@NotNull MouseEvent event) {
+                boolean actionClick = SwingUtilities.isRightMouseButton(event);
+                if (!actionClick || LauncherFrame.this.busy) return;
+
+                int index = LauncherFrame.this.instanceList.locationToIndex(event.getPoint());
+                Rectangle bounds = index < 0 ? null : LauncherFrame.this.instanceList.getCellBounds(index, index);
+                if (bounds == null || !bounds.contains(event.getPoint())) return;
+
+                LauncherFrame.this.instanceList.setSelectedIndex(index);
+                LauncherFrame.this.updateControlState();
+                LauncherFrame.this.instanceActionsMenu.show(
+                        LauncherFrame.this.instanceList, event.getX(), event.getY()
+                );
+            }
+        });
         this.modTable.getSelectionModel().addListSelectionListener(event -> {
             if (!event.getValueIsAdjusting()) updateControlState();
         });
@@ -296,22 +325,84 @@ public final class LauncherFrame extends JFrame {
                     }
             );
         });
-        this.createInstanceButton.addActionListener(event -> {
-            InstanceCreationRequest request = CreateInstanceDialog.showDialog(this);
+        this.addInstanceButton.addActionListener(event -> {
+            AddInstanceDialog dialog = new AddInstanceDialog(this);
+            dialog.setVisible(true);
+            InstanceAdditionRequest request = dialog.result();
             if (request == null) return;
 
             this.runTask(
-                    "Creating " + request.name() + "…",
-                    () -> this.launcherService.createInstance(request),
+                    (request.importsInstance() ? "Importing " : "Creating ") + request.name() + "…",
+                    () -> this.launcherService.addInstance(request),
                     instance -> {
-                        this.appendActivity("Created instance " + instance.name() + ".");
-                        this.refreshInstances(instance.name());
+                        this.appendActivity(
+                                (request.importsInstance() ? "Imported MMC instance " : "Created instance ")
+                                        + instance.name() + "."
+                        );
+                        this.refreshInstances(instance.id());
                     }
             );
         });
-        this.deleteInstanceButton.addActionListener(event -> {
+        this.renameInstanceItem.addActionListener(event -> {
+            MinecraftInstance instance = this.selectedInstance();
+            if (instance == null || this.runningProcess != null) return;
+            String name = (String) JOptionPane.showInputDialog(
+                    this,
+                    "New instance name:",
+                    "Rename " + instance.name(),
+                    JOptionPane.PLAIN_MESSAGE,
+                    null,
+                    null,
+                    instance.name()
+            );
+            if (name == null) return;
+            name = name.trim();
+            if (!InstanceNames.isValid(name)) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Instance names cannot be empty or contain control characters.",
+                        "Invalid instance name",
+                        JOptionPane.ERROR_MESSAGE
+                );
+                return;
+            }
+
+            String renamedName = name;
+            this.runTask(
+                    "Renaming " + instance.name() + "…",
+                    () -> this.launcherService.renameInstance(instance, renamedName),
+                    renamed -> {
+                        this.appendActivity("Renamed instance to " + renamed.name() + ".");
+                        this.refreshInstances(renamed.id());
+                    }
+            );
+        });
+        this.exportInstanceItem.addActionListener(event -> {
             MinecraftInstance instance = this.selectedInstance();
             if (instance == null) return;
+
+            JFileChooser chooser = new JFileChooser();
+            chooser.setDialogTitle("Export " + instance.name() + " as an MMC instance");
+            chooser.setFileFilter(new FileNameExtensionFilter("MMC instance archives (*.zip)", "zip"));
+            chooser.setSelectedFile(new java.io.File(InstanceNames.folderName(instance.name()) + ".zip"));
+            if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return;
+            Path destination = chooser.getSelectedFile().toPath();
+
+            this.runTask(
+                    "Exporting " + instance.name() + "…",
+                    () -> {
+                        this.launcherService.exportInstance(instance, destination);
+                        return null;
+                    },
+                    ignored -> {
+                        this.setStatus("Ready");
+                        this.appendActivity("Exported MMC instance " + instance.name() + ".");
+                    }
+            );
+        });
+        this.deleteInstanceItem.addActionListener(event -> {
+            MinecraftInstance instance = this.selectedInstance();
+            if (instance == null || this.runningProcess != null) return;
 
             int choice = JOptionPane.showConfirmDialog(
                     this,
@@ -334,7 +425,7 @@ public final class LauncherFrame extends JFrame {
                     }
             );
         });
-        this.refreshInstancesButton.addActionListener(event -> refreshInstances(selectedInstanceName()));
+        this.refreshInstancesButton.addActionListener(event -> this.refreshInstances(this.selectedInstanceId()));
         this.installModButton.addActionListener(event -> {
             MinecraftInstance instance = this.selectedInstance();
             if (instance == null) return;
@@ -427,7 +518,7 @@ public final class LauncherFrame extends JFrame {
         }
     }
 
-    private void refreshInstances(String selectedName) {
+    private void refreshInstances(@Nullable String selectedId) {
         runTask(
                 "Loading instances…",
                 this.launcherService::listInstances,
@@ -435,11 +526,11 @@ public final class LauncherFrame extends JFrame {
                     this.instanceModel.clear();
                     for (MinecraftInstance instance : instances) this.instanceModel.addElement(instance);
 
-                    MinecraftInstance selection = findInstance(instances, selectedName);
+                    MinecraftInstance selection = findInstance(instances, selectedId);
                     if (selection == null && !instances.isEmpty()) selection = instances.getFirst();
                     this.instanceList.setSelectedValue(selection, true);
                     if (selection == null) showSelectedInstance();
-                    setStatus(instances.isEmpty() ? "Create an instance to get started." : "Ready");
+                    setStatus(instances.isEmpty() ? "Add an instance to get started." : "Ready");
                 }
         );
     }
@@ -574,8 +665,10 @@ public final class LauncherFrame extends JFrame {
         this.usernameField.setEnabled(available);
         this.offlineButton.setEnabled(available);
         this.microsoftButton.setEnabled(available);
-        this.createInstanceButton.setEnabled(available);
-        this.deleteInstanceButton.setEnabled(available && instance != null && this.runningProcess == null);
+        this.addInstanceButton.setEnabled(available);
+        this.renameInstanceItem.setEnabled(available && instance != null && this.runningProcess == null);
+        this.exportInstanceItem.setEnabled(available && instance != null);
+        this.deleteInstanceItem.setEnabled(available && instance != null && this.runningProcess == null);
         this.refreshInstancesButton.setEnabled(available);
         this.instanceList.setEnabled(available);
         this.modTable.setEnabled(available && supportsMods);
@@ -643,24 +736,28 @@ public final class LauncherFrame extends JFrame {
         JOptionPane.showMessageDialog(this, message, title, JOptionPane.ERROR_MESSAGE);
     }
 
+    @Nullable
     private MinecraftInstance selectedInstance() {
         return this.instanceList.getSelectedValue();
     }
 
-    private String selectedInstanceName() {
+    @Nullable
+    private String selectedInstanceId() {
         MinecraftInstance instance = selectedInstance();
-        return instance == null ? null : instance.name();
+        return instance == null ? null : instance.id();
     }
 
+    @Nullable
     private ManagedMod selectedMod() {
         int row = this.modTable.getSelectedRow();
         return row < 0 ? null : this.modTableModel.modAt(row);
     }
 
-    private static MinecraftInstance findInstance(List<MinecraftInstance> instances, String name) {
-        if (name == null) return null;
+    @Nullable
+    private static MinecraftInstance findInstance(@NotNull List<MinecraftInstance> instances, @Nullable String id) {
+        if (id == null) return null;
         for (MinecraftInstance instance : instances) {
-            if (name.equals(instance.name())) return instance;
+            if (id.equals(instance.id())) return instance;
         }
         return null;
     }

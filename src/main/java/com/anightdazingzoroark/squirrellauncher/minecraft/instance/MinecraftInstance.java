@@ -9,22 +9,31 @@ import java.nio.file.Path;
 public record MinecraftInstance(@NotNull String id, @NotNull String name, @NotNull InstanceType type, @Nullable String loaderVersion) {
     @NotNull
     public Path directory() {
-        return MinecraftPaths.INSTANCES.resolve(id);
+        return MinecraftPaths.INSTANCES.resolve(this.id);
     }
 
     @NotNull
     public Path gameDirectory() {
-        return directory().resolve("minecraft");
+        Path minecraft = this.directory().resolve("minecraft");
+        Path dotMinecraft = this.directory().resolve(".minecraft");
+        return java.nio.file.Files.exists(dotMinecraft) && !java.nio.file.Files.exists(minecraft)
+                ? dotMinecraft
+                : minecraft;
     }
 
     @NotNull
     public Path nativesDirectory() {
-        return directory().resolve("natives");
+        return this.directory().resolve("natives");
     }
 
     @NotNull
     public Path configFile() {
-        return directory().resolve("instance.json");
+        return this.directory().resolve("instance.cfg");
+    }
+
+    @NotNull
+    public Path componentFile() {
+        return this.directory().resolve("mmc-pack.json");
     }
 
     @NotNull
@@ -32,8 +41,4 @@ public record MinecraftInstance(@NotNull String id, @NotNull String name, @NotNu
         return this.gameDirectory().resolve("mods");
     }
 
-    @NotNull
-    public Path disabledModsDirectory() {
-        return this.directory().resolve("disabled-mods");
-    }
 }

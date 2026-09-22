@@ -7,10 +7,14 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceManag
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ManagedMod;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModManager;
+import com.anightdazingzoroark.squirrellauncher.minecraft.modpack.MMCPackManager;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
@@ -56,27 +60,63 @@ public final class LauncherService implements AutoCloseable {
     }
 
     @NotNull
-    public MinecraftInstance createInstance(@NotNull InstanceCreationRequest request) throws Exception {
+    public MinecraftInstance addInstance(@NotNull InstanceAdditionRequest request) throws Exception {
         String name = request.name();
         if (!InstanceNames.isValid(name)) {
-            throw new IllegalArgumentException("Instance name is not a valid folder name.");
+            throw new IllegalArgumentException("Instance name cannot be empty or contain control characters.");
         }
+        String instanceId = this.availableInstanceId(name, null);
+        if (request.importsInstance()) {
+            return MMCPackManager.importPack(request.archive(), instanceId, name);
+        }
+
+        if (request.type() == null) throw new IllegalArgumentException("Instance type is missing.");
         String loaderVersion = request.type().hasMods ? request.loaderVersion() : null;
         if (loaderVersion != null) loaderVersion = loaderVersion.trim();
         if (request.type().hasMods && (loaderVersion == null || loaderVersion.isEmpty())) {
             throw new IllegalArgumentException("A loader version is required for " + request.type() + ".");
         }
-        MinecraftInstance instance = new MinecraftInstance(name, name, request.type(), loaderVersion);
-        if (Files.exists(instance.directory())) {
-            throw new IllegalArgumentException("An instance named " + name + " already exists! Try a different name!");
+        return InstanceManager.create(instanceId, name, request.type(), loaderVersion);
+    }
+
+    @NotNull
+    public MinecraftInstance renameInstance(@NotNull MinecraftInstance instance, @NotNull String name) throws Exception {
+        if (!InstanceNames.isValid(name)) {
+            throw new IllegalArgumentException("Instance name cannot be empty or contain control characters.");
         }
 
-        Files.createDirectories(instance.directory().getParent());
-        Files.createDirectory(instance.directory());
-        Files.createDirectories(instance.gameDirectory());
-        Files.createDirectories(instance.nativesDirectory());
-        InstanceManager.save(instance);
-        return instance;
+        String instanceId = this.availableInstanceId(name, instance.id());
+        Path source = instance.directory();
+        Path destination = MinecraftPaths.INSTANCES.resolve(instanceId);
+        boolean moved = !source.equals(destination);
+        if (moved) {
+            try {
+                Files.move(source, destination, StandardCopyOption.ATOMIC_MOVE);
+            }
+            catch (AtomicMoveNotSupportedException exception) {
+                Files.move(source, destination);
+            }
+        }
+
+        try {
+            InstanceManager.setName(destination, name);
+        }
+        catch (Exception exception) {
+            if (moved) {
+                try {
+                    Files.move(destination, source);
+                }
+                catch (Exception rollbackException) {
+                    exception.addSuppressed(rollbackException);
+                }
+            }
+            throw exception;
+        }
+        return InstanceManager.load(instanceId);
+    }
+
+    public void exportInstance(@NotNull MinecraftInstance instance, @NotNull Path destination) throws Exception {
+        MMCPackManager.exportPack(instance, destination);
     }
 
     public void deleteInstance(@NotNull MinecraftInstance instance) throws Exception {
@@ -133,5 +173,17 @@ public final class LauncherService implements AutoCloseable {
     @Override
     public void close() {
         this.outputBridge.close();
+    }
+
+    @NotNull
+    private String availableInstanceId(@NotNull String name, @Nullable String currentId) {
+        String baseName = InstanceNames.folderName(name);
+        String candidate = baseName;
+        int suffix = 0;
+        while (!candidate.equals(currentId) && Files.exists(MinecraftPaths.INSTANCES.resolve(candidate))) {
+            suffix++;
+            candidate = baseName + "(" + suffix + ")";
+        }
+        return candidate;
     }
 }

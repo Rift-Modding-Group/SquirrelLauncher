@@ -2,41 +2,40 @@ package com.anightdazingzoroark.squirrellauncher.launcher;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.nio.file.InvalidPathException;
-import java.nio.file.Path;
 import java.util.Locale;
 
-/** Platform-aware validation for instance names used as directory names. */
+/** MMC-compatible display-name validation and instance-folder sanitizing. */
 public final class InstanceNames {
-    private static final boolean WINDOWS = System.getProperty("os.name")
-            .toLowerCase(Locale.ROOT)
-            .contains("windows");
+    @NotNull
+    private static final String INVALID_FOLDER_CHARACTERS = "<>:\"|?*!\\/";
 
     private InstanceNames() {}
 
-    /**
-     * Returns whether the text can still become a valid folder name. Empty and
-     * temporarily incomplete names remain typeable so editing behaves normally.
-     */
-    public static boolean canType(@NotNull String name) {
-        if (name.isEmpty()) return true;
-        try {
-            Path path = Path.of(name);
-            return !path.isAbsolute()
-                    && path.getNameCount() == 1
-                    && name.equals(path.getFileName().toString());
-        }
-        catch (InvalidPathException exception) {
-            return false;
-        }
+    public static boolean isValid(@NotNull String name) {
+        if (name.isBlank()) return false;
+        return name.codePoints().noneMatch(Character::isISOControl);
     }
 
-    public static boolean isValid(@NotNull String name) {
-        if (name.isBlank() || name.equals(".") || name.equals("..") || !canType(name)) return false;
-        if (!WINDOWS) return true;
+    @NotNull
+    public static String folderName(@NotNull String name) {
+        StringBuilder result = new StringBuilder(name.length());
+        name.codePoints().forEach(character -> {
+            boolean invalid = Character.isISOControl(character)
+                    || INVALID_FOLDER_CHARACTERS.indexOf(character) >= 0;
+            result.appendCodePoint(invalid ? '-' : character);
+        });
 
-        if (name.endsWith(" ") || name.endsWith(".")) return false;
-        String baseName = name.split("\\.", 2)[0].stripTrailing().toUpperCase(Locale.ROOT);
-        return !baseName.matches("CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9]");
+        while (!result.isEmpty()) {
+            int last = result.length() - 1;
+            if (result.charAt(last) != ' ' && result.charAt(last) != '.') break;
+            result.setCharAt(last, '-');
+        }
+
+        String folderName = result.toString();
+        if (folderName.equals(".") || folderName.equals("..")) folderName = folderName.replace('.', '-');
+
+        String baseName = folderName.split("\\.", 2)[0].stripTrailing().toUpperCase(Locale.ROOT);
+        if (baseName.matches("CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9]")) folderName += "-";
+        return folderName;
     }
 }
