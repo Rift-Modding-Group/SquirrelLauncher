@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -50,7 +51,7 @@ public final class InstanceManager {
         Path instanceDirectory = MinecraftPaths.INSTANCES.resolve(id);
         if (Files.exists(instanceDirectory)) throw new IOException("Instance already exists: " + id);
 
-        MinecraftInstance instance = new MinecraftInstance(id, name, type, loaderVersion);
+        MinecraftInstance instance = new MinecraftInstance(id, name, type, loaderVersion, null);
         Files.createDirectories(instance.gameDirectory());
         Files.createDirectories(instance.nativesDirectory());
         InstanceManager.save(instance);
@@ -59,11 +60,56 @@ public final class InstanceManager {
 
     public static void save(@NotNull MinecraftInstance instance) throws IOException {
         Files.createDirectories(instance.directory());
-        Files.writeString(
-                instance.configFile(),
-                "InstanceType=OneSix\nname=" + InstanceManager.escapeCfgValue(instance.name()) + "\n",
-                StandardCharsets.UTF_8
+        String iconEntry = instance.iconKey() == null ? "" : "iconKey="
+                + InstanceManager.escapeCfgValue(instance.iconKey()) + "\n";
+        Files.writeString(instance.configFile(), "InstanceType=OneSix\n" + iconEntry
+                + "name=" + InstanceManager.escapeCfgValue(instance.name()) + "\n", StandardCharsets.UTF_8);
+
+        InstanceManager.saveComponents(instance);
+    }
+
+    @NotNull
+    public static MinecraftInstance convert(
+            @NotNull MinecraftInstance instance,
+            @NotNull InstanceType type,
+            @Nullable String loaderVersion
+    ) throws IOException {
+        if (type.hasMods && (loaderVersion == null || loaderVersion.isBlank())) {
+            throw new IllegalArgumentException("A loader version is required for " + type + ".");
+        }
+        MinecraftInstance converted = new MinecraftInstance(
+                instance.id(),
+                instance.name(),
+                type,
+                type.hasMods ? loaderVersion.trim() : null,
+                instance.iconKey()
         );
+        Path loaderPatch = instance.directory().resolve("patches").resolve(FORGE_COMPONENT + ".json");
+        Path backupPatch = null;
+        if (Files.isRegularFile(loaderPatch)) {
+            Path backupDirectory = instance.directory().resolve("patches").resolve(".squirrellauncher-backup");
+            Files.createDirectories(backupDirectory);
+            backupPatch = Files.createTempFile(backupDirectory, FORGE_COMPONENT + "-", ".json");
+            Files.move(loaderPatch, backupPatch, StandardCopyOption.REPLACE_EXISTING);
+        }
+        try {
+            InstanceManager.saveComponents(converted);
+        }
+        catch (IOException exception) {
+            if (backupPatch != null) {
+                try {
+                    Files.move(backupPatch, loaderPatch, StandardCopyOption.REPLACE_EXISTING);
+                }
+                catch (IOException rollbackException) {
+                    exception.addSuppressed(rollbackException);
+                }
+            }
+            throw exception;
+        }
+        return InstanceManager.load(instance.id());
+    }
+
+    private static void saveComponents(@NotNull MinecraftInstance instance) throws IOException {
 
         JsonArray components = new JsonArray();
         JsonObject minecraft = new JsonObject();
@@ -86,7 +132,26 @@ public final class InstanceManager {
         JsonObject pack = new JsonObject();
         pack.add("components", components);
         pack.addProperty("formatVersion", MMC_FORMAT_VERSION);
-        Files.writeString(instance.componentFile(), GSON.toJson(pack), StandardCharsets.UTF_8);
+        Path temporary = Files.createTempFile(instance.directory(), ".mmc-pack-", ".json");
+        boolean moved = false;
+        try {
+            Files.writeString(temporary, GSON.toJson(pack), StandardCharsets.UTF_8);
+            try {
+                Files.move(
+                        temporary,
+                        instance.componentFile(),
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.REPLACE_EXISTING
+                );
+            }
+            catch (java.nio.file.AtomicMoveNotSupportedException exception) {
+                Files.move(temporary, instance.componentFile(), StandardCopyOption.REPLACE_EXISTING);
+            }
+            moved = true;
+        }
+        finally {
+            if (!moved) Files.deleteIfExists(temporary);
+        }
     }
 
     @NotNull
@@ -115,6 +180,11 @@ public final class InstanceManager {
         }
         String name = config.getProperty("name", id).trim();
         if (name.isEmpty()) name = id;
+        String iconKey = config.getProperty("iconKey");
+        if (iconKey != null) {
+            iconKey = iconKey.trim();
+            if (iconKey.isEmpty() || iconKey.equals("default")) iconKey = null;
+        }
 
         JsonObject pack = InstallUtils.readJson(componentFile);
         if (!pack.has("formatVersion") || pack.get("formatVersion").getAsInt() != MMC_FORMAT_VERSION) {
@@ -169,21 +239,34 @@ public final class InstanceManager {
         if (type == InstanceType.FORGE && loaderVersion.startsWith(SquirrelLauncher.VERSION + "-")) {
             loaderVersion = loaderVersion.substring((SquirrelLauncher.VERSION + "-").length());
         }
-        return new MinecraftInstance(id, name, type, loaderVersion);
+        return new MinecraftInstance(id, name, type, loaderVersion, iconKey);
     }
 
     public static void setName(@NotNull Path directory, @NotNull String name) throws IOException {
+        InstanceManager.setConfigValue(directory, "name", name);
+    }
+
+    public static void setIconKey(@NotNull Path directory, @Nullable String iconKey) throws IOException {
+        InstanceManager.setConfigValue(directory, "iconKey", iconKey);
+    }
+
+    private static void setConfigValue(
+            @NotNull Path directory,
+            @NotNull String key,
+            @Nullable String value
+    ) throws IOException {
         Path config = directory.resolve("instance.cfg");
         List<String> lines = new ArrayList<>(Files.readAllLines(config, StandardCharsets.UTF_8));
         boolean replaced = false;
         for (int index = 0; index < lines.size(); index++) {
-            if (lines.get(index).startsWith("name=")) {
-                lines.set(index, "name=" + InstanceManager.escapeCfgValue(name));
+            if (lines.get(index).startsWith(key + "=")) {
+                if (value == null) lines.remove(index);
+                else lines.set(index, key + "=" + InstanceManager.escapeCfgValue(value));
                 replaced = true;
                 break;
             }
         }
-        if (!replaced) lines.add("name=" + InstanceManager.escapeCfgValue(name));
+        if (!replaced && value != null) lines.add(key + "=" + InstanceManager.escapeCfgValue(value));
         Files.write(config, lines, StandardCharsets.UTF_8);
     }
 

@@ -2,6 +2,7 @@ package com.anightdazingzoroark.squirrellauncher.minecraft.modpack;
 
 import com.anightdazingzoroark.squirrellauncher.minecraft.MinecraftPaths;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceManager;
+import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceIconManager;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
 import org.jetbrains.annotations.NotNull;
 
@@ -16,8 +17,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -127,6 +130,7 @@ public final class MMCPackManager {
         try {
             try (OutputStream output = Files.newOutputStream(temporary); ZipOutputStream zip = new ZipOutputStream(output);
                  java.util.stream.Stream<Path> paths = Files.walk(instanceRoot)) {
+                Set<String> archivedNames = new HashSet<>();
                 for (Path file : paths.filter(Files::isRegularFile).sorted().toList()) {
                     Path relative = instanceRoot.relativize(file);
                     if (relative.startsWith("natives")
@@ -139,6 +143,20 @@ public final class MMCPackManager {
                     zip.putNextEntry(new ZipEntry(entryName));
                     Files.copy(file, zip);
                     zip.closeEntry();
+                    archivedNames.add(entryName);
+                }
+
+                Path icon = InstanceIconManager.customIcon(instance);
+                if (icon != null && !icon.toAbsolutePath().normalize().startsWith(instanceRoot)) {
+                    String extension = icon.getFileName().toString();
+                    int separator = extension.lastIndexOf('.');
+                    extension = separator < 0 ? ".png" : extension.substring(separator);
+                    String entryName = instance.iconKey() + extension;
+                    if (archivedNames.add(entryName)) {
+                        zip.putNextEntry(new ZipEntry(entryName));
+                        Files.copy(icon, zip);
+                        zip.closeEntry();
+                    }
                 }
             }
             try {

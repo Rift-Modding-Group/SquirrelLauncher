@@ -6,8 +6,10 @@ import com.anightdazingzoroark.squirrellauncher.launcher.InstanceNames;
 import com.anightdazingzoroark.squirrellauncher.launcher.LauncherService;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MinecraftAccount;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
+import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceType;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ManagedMod;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModState;
+import com.anightdazingzoroark.squirrellauncher.ui.settings.SettingsDialog;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -15,10 +17,12 @@ import javax.swing.BorderFactory;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
+import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -29,7 +33,6 @@ import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
-import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
@@ -69,13 +72,17 @@ public final class LauncherFrame extends JFrame {
     private final JButton refreshInstancesButton = new JButton("Refresh");
     private final JPopupMenu instanceActionsMenu = new JPopupMenu();
     private final JMenuItem renameInstanceItem = new JMenuItem("Rename…");
+    private final JMenuItem duplicateInstanceItem = new JMenuItem("Duplicate…");
+    private final JMenuItem convertInstanceItem = new JMenuItem("Convert type…");
+    private final JMenu instanceIconMenu = new JMenu("Icon");
+    private final JMenuItem chooseInstanceIconItem = new JMenuItem("Choose custom icon…");
+    private final JMenuItem resetInstanceIconItem = new JMenuItem("Use type icon");
     private final JMenuItem exportInstanceItem = new JMenuItem("Export…");
     private final JMenuItem deleteInstanceItem = new JMenuItem("Delete…");
 
-    private final JLabel accountLabel = new JLabel();
-    private final JTextField usernameField = new JTextField("Squirrel", 12);
-    private final JButton offlineButton = new JButton("Use offline");
-    private final JButton microsoftButton = new JButton("Sign in with Microsoft");
+    private final JComboBox<MinecraftAccount> accountSelector = new JComboBox<>();
+    private final JButton manageAccountsButton = new JButton("Manage accounts…");
+    private final JButton settingsButton = new JButton("Settings…");
 
     private final JLabel instanceNameLabel = new JLabel("Select an instance");
     private final JLabel instanceTypeLabel = new JLabel("Type: —");
@@ -100,6 +107,7 @@ public final class LauncherFrame extends JFrame {
     @NotNull
     private final LauncherService launcherService;
     private boolean busy;
+    private boolean updatingAccountSelector;
     @Nullable
     private Process runningProcess;
 
@@ -117,10 +125,17 @@ public final class LauncherFrame extends JFrame {
         this.add(this.createStatusBar(), BorderLayout.SOUTH);
 
         this.configureListeners();
-        this.updateAccount(this.launcherService.account());
+        this.refreshAccountSelector();
         this.updateControlState();
         this.appendActivity("SquirrelLauncher is ready.");
         this.refreshInstances(null);
+        SwingUtilities.invokeLater(() -> {
+            if (this.launcherService.accounts().isEmpty()) {
+                this.showSettings(SettingsDialog.Tab.ACCOUNTS);
+                MinecraftAccount account = this.launcherService.account();
+                if (account != null) this.appendActivity("Account setup completed for " + account.username() + ".");
+            }
+        });
     }
 
     private JPanel createAccountBar() {
@@ -132,10 +147,40 @@ public final class LauncherFrame extends JFrame {
         panel.add(title, BorderLayout.WEST);
 
         JPanel accountControls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        accountControls.add(this.accountLabel);
-        accountControls.add(this.usernameField);
-        accountControls.add(this.offlineButton);
-        accountControls.add(this.microsoftButton);
+        accountControls.add(new JLabel("Account:"));
+        this.accountSelector.setPreferredSize(new Dimension(220, 38));
+        this.accountSelector.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(
+                    JList<?> list,
+                    Object value,
+                    int index,
+                    boolean selected,
+                    boolean focused
+            ) {
+                JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, selected, focused);
+                if (value instanceof MinecraftAccount account) {
+                    String accountNameString = account.username();
+                    if (account.type() == MinecraftAccount.AccountType.OFFLINE) {
+                        accountNameString = accountNameString + " (" + displayName(MinecraftAccount.AccountType.OFFLINE) + ")";
+                    }
+                    label.setText(accountNameString);
+                    label.setIcon(AccountIconProvider.INSTANCE.iconFor(
+                            account,
+                            LauncherFrame.this.accountSelector::repaint
+                    ));
+                    label.setIconTextGap(8);
+                }
+                else {
+                    label.setText("No account added");
+                    label.setIcon(null);
+                }
+                return label;
+            }
+        });
+        accountControls.add(this.accountSelector);
+        accountControls.add(this.manageAccountsButton);
+        accountControls.add(this.settingsButton);
         panel.add(accountControls, BorderLayout.EAST);
         return panel;
     }
@@ -286,6 +331,12 @@ public final class LauncherFrame extends JFrame {
             if (!event.getValueIsAdjusting()) showSelectedInstance();
         });
         this.instanceActionsMenu.add(this.renameInstanceItem);
+        this.instanceActionsMenu.add(this.duplicateInstanceItem);
+        this.instanceActionsMenu.add(this.convertInstanceItem);
+        this.instanceIconMenu.add(this.chooseInstanceIconItem);
+        this.instanceIconMenu.add(this.resetInstanceIconItem);
+        this.instanceActionsMenu.add(this.instanceIconMenu);
+        this.instanceActionsMenu.addSeparator();
         this.instanceActionsMenu.add(this.exportInstanceItem);
         this.instanceActionsMenu.addSeparator();
         this.instanceActionsMenu.add(this.deleteInstanceItem);
@@ -310,21 +361,23 @@ public final class LauncherFrame extends JFrame {
             if (!event.getValueIsAdjusting()) updateControlState();
         });
 
-        this.offlineButton.addActionListener(event -> this.useOfflineAccount());
-        this.usernameField.addActionListener(event -> this.useOfflineAccount());
-        this.microsoftButton.addActionListener(event -> {
-            this.showActivityTab();
-            this.appendActivity("Starting Microsoft sign in. Complete the browser prompt when it opens.");
-            this.runTask(
-                    "Waiting for Microsoft sign in…",
-                    this.launcherService::signInWithMicrosoft,
-                    account -> {
-                        this.updateAccount(account);
-                        this.setStatus("Signed in as " + account.username() + ".");
-                        this.appendActivity("Microsoft sign in completed for " + account.username() + ".");
-                    }
-            );
+        this.accountSelector.addActionListener(event -> {
+            if (this.updatingAccountSelector || this.busy) return;
+            MinecraftAccount account = (MinecraftAccount) this.accountSelector.getSelectedItem();
+            if (account == null) return;
+            try {
+                this.launcherService.selectAccount(account);
+                this.setStatus("Using " + account.username() + ".");
+                this.appendActivity("Switched to " + account.username() + ".");
+                this.updateControlState();
+            }
+            catch (Exception exception) {
+                this.showError("Could not select account", exception);
+                this.refreshAccountSelector();
+            }
         });
+        this.manageAccountsButton.addActionListener(event -> this.showSettings(SettingsDialog.Tab.ACCOUNTS));
+        this.settingsButton.addActionListener(event -> this.showSettings(SettingsDialog.Tab.GAME));
         this.addInstanceButton.addActionListener(event -> {
             AddInstanceDialog dialog = new AddInstanceDialog(this);
             dialog.setVisible(true);
@@ -346,26 +399,10 @@ public final class LauncherFrame extends JFrame {
         this.renameInstanceItem.addActionListener(event -> {
             MinecraftInstance instance = this.selectedInstance();
             if (instance == null || this.runningProcess != null) return;
-            String name = (String) JOptionPane.showInputDialog(
-                    this,
-                    "New instance name:",
-                    "Rename " + instance.name(),
-                    JOptionPane.PLAIN_MESSAGE,
-                    null,
-                    null,
-                    instance.name()
+            String name = this.promptForInstanceName(
+                    "Rename " + instance.name(), "New instance name:", instance.name()
             );
             if (name == null) return;
-            name = name.trim();
-            if (!InstanceNames.isValid(name)) {
-                JOptionPane.showMessageDialog(
-                        this,
-                        "Instance names cannot be empty or contain control characters.",
-                        "Invalid instance name",
-                        JOptionPane.ERROR_MESSAGE
-                );
-                return;
-            }
 
             String renamedName = name;
             this.runTask(
@@ -374,6 +411,75 @@ public final class LauncherFrame extends JFrame {
                     renamed -> {
                         this.appendActivity("Renamed instance to " + renamed.name() + ".");
                         this.refreshInstances(renamed.id());
+                    }
+            );
+        });
+        this.duplicateInstanceItem.addActionListener(event -> {
+            MinecraftInstance instance = this.selectedInstance();
+            if (instance == null || this.runningProcess != null) return;
+            String name = this.promptForInstanceName(
+                    "Duplicate " + instance.name(), "Name for the duplicate:", instance.name() + " Copy"
+            );
+            if (name == null) return;
+
+            this.runTask(
+                    "Duplicating " + instance.name() + "…",
+                    () -> this.launcherService.duplicateInstance(instance, name),
+                    duplicate -> {
+                        this.appendActivity("Duplicated " + instance.name() + " as " + duplicate.name() + ".");
+                        this.refreshInstances(duplicate.id());
+                    }
+            );
+        });
+        this.convertInstanceItem.addActionListener(event -> {
+            MinecraftInstance instance = this.selectedInstance();
+            if (instance == null || this.runningProcess != null) return;
+            ConvertInstanceDialog dialog = new ConvertInstanceDialog(this, instance);
+            dialog.setVisible(true);
+            InstanceType type = dialog.selectedType();
+            if (type == null) return;
+            String loaderVersion = dialog.loaderVersion();
+
+            this.runTask(
+                    "Converting " + instance.name() + "…",
+                    () -> this.launcherService.convertInstance(instance, type, loaderVersion),
+                    converted -> {
+                        this.appendActivity(
+                                "Converted " + converted.name() + " to " + displayName(converted.type()) + "."
+                        );
+                        this.refreshInstances(converted.id());
+                    }
+            );
+        });
+        this.chooseInstanceIconItem.addActionListener(event -> {
+            MinecraftInstance instance = this.selectedInstance();
+            if (instance == null) return;
+            JFileChooser chooser = new JFileChooser();
+            chooser.setDialogTitle("Choose an icon for " + instance.name());
+            chooser.setFileFilter(new FileNameExtensionFilter(
+                    "Images (*.png, *.jpg, *.jpeg, *.gif, *.bmp)",
+                    "png", "jpg", "jpeg", "gif", "bmp"
+            ));
+            if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
+            Path source = chooser.getSelectedFile().toPath();
+            this.runTask(
+                    "Updating " + instance.name() + " icon…",
+                    () -> this.launcherService.setInstanceIcon(instance, source),
+                    updated -> {
+                        this.appendActivity("Updated the icon for " + updated.name() + ".");
+                        this.refreshInstances(updated.id());
+                    }
+            );
+        });
+        this.resetInstanceIconItem.addActionListener(event -> {
+            MinecraftInstance instance = this.selectedInstance();
+            if (instance == null || instance.iconKey() == null) return;
+            this.runTask(
+                    "Resetting " + instance.name() + " icon…",
+                    () -> this.launcherService.resetInstanceIcon(instance),
+                    updated -> {
+                        this.appendActivity("Restored the type icon for " + updated.name() + ".");
+                        this.refreshInstances(updated.id());
                     }
             );
         });
@@ -494,28 +600,20 @@ public final class LauncherFrame extends JFrame {
         });
         this.launchButton.addActionListener(event -> {
             MinecraftInstance instance = this.selectedInstance();
-            if (instance == null || this.runningProcess != null) return;
+            MinecraftAccount account = this.launcherService.account();
+            if (instance == null || account == null || this.runningProcess != null) return;
 
             this.showActivityTab();
-            this.appendActivity("Launching " + instance.name() + " as " + this.launcherService.account().username() + ".");
+            this.appendActivity("Launching " + instance.name() + " as " + account.username() + ".");
             this.runTask(
                     "Installing and preparing Minecraft…",
                     () -> this.launcherService.launch(instance),
-                    process -> monitorProcess(instance, process)
+                    process -> {
+                        this.refreshAccountSelector();
+                        this.monitorProcess(instance, process);
+                    }
             );
         });
-    }
-
-    private void useOfflineAccount() {
-        try {
-            MinecraftAccount account = this.launcherService.useOfflineAccount(this.usernameField.getText());
-            updateAccount(account);
-            setStatus("Using offline account " + account.username() + ".");
-            appendActivity("Switched to offline account " + account.username() + ".");
-        }
-        catch (RuntimeException exception) {
-            showError("Could not use offline account", exception);
-        }
     }
 
     private void refreshInstances(@Nullable String selectedId) {
@@ -546,6 +644,8 @@ public final class LauncherFrame extends JFrame {
 
         this.instanceContentLayout.show(this.instanceContentCards, INSTANCE_DETAILS_CARD);
         this.instanceNameLabel.setText(instance.name());
+        this.instanceNameLabel.setIcon(InstanceIconProvider.INSTANCE.iconFor(instance));
+        this.instanceNameLabel.setIconTextGap(12);
         this.instanceTypeLabel.setText("Type: " + displayName(instance.type()));
         this.loaderVersionLabel.setText(instance.loaderVersion() == null
                 ? "Minecraft " + SquirrelLauncher.VERSION
@@ -662,11 +762,16 @@ public final class LauncherFrame extends JFrame {
         boolean supportsMods = instance != null && instance.type().hasMods;
         ManagedMod mod = selectedMod();
 
-        this.usernameField.setEnabled(available);
-        this.offlineButton.setEnabled(available);
-        this.microsoftButton.setEnabled(available);
+        this.accountSelector.setEnabled(available && this.accountSelector.getItemCount() > 0);
+        this.manageAccountsButton.setEnabled(available);
+        this.settingsButton.setEnabled(available);
         this.addInstanceButton.setEnabled(available);
         this.renameInstanceItem.setEnabled(available && instance != null && this.runningProcess == null);
+        this.duplicateInstanceItem.setEnabled(available && instance != null && this.runningProcess == null);
+        this.convertInstanceItem.setEnabled(available && instance != null && this.runningProcess == null);
+        this.instanceIconMenu.setEnabled(available && instance != null);
+        this.chooseInstanceIconItem.setEnabled(available && instance != null);
+        this.resetInstanceIconItem.setEnabled(available && instance != null && instance.iconKey() != null);
         this.exportInstanceItem.setEnabled(available && instance != null);
         this.deleteInstanceItem.setEnabled(available && instance != null && this.runningProcess == null);
         this.refreshInstancesButton.setEnabled(available);
@@ -676,15 +781,56 @@ public final class LauncherFrame extends JFrame {
         this.toggleModButton.setEnabled(available && supportsMods && mod != null);
         this.removeModButton.setEnabled(available && supportsMods && mod != null);
         this.toggleModButton.setText(mod != null && mod.state() == ModState.ENABLED ? "Disable" : "Enable");
-        this.launchButton.setEnabled(available && instance != null && this.runningProcess == null);
+        this.launchButton.setEnabled(
+                available && instance != null && this.launcherService.account() != null && this.runningProcess == null
+        );
         this.launchButton.setText(this.runningProcess == null ? "Launch Minecraft" : "Minecraft running");
     }
 
-    private void updateAccount(MinecraftAccount account) {
-        this.accountLabel.setText("Playing as " + account.username() + " (" + displayName(account.type()) + ")");
-        if (account.type() == MinecraftAccount.AccountType.OFFLINE) {
-            this.usernameField.setText(account.username());
+    private void refreshAccountSelector() {
+        this.updatingAccountSelector = true;
+        this.accountSelector.removeAllItems();
+        for (MinecraftAccount account : this.launcherService.accounts()) this.accountSelector.addItem(account);
+        this.accountSelector.setSelectedItem(this.launcherService.account());
+        this.updatingAccountSelector = false;
+        this.updateControlState();
+    }
+
+    private void showSettings(@NotNull SettingsDialog.Tab selectedTab) {
+        SettingsDialog dialog = new SettingsDialog(this, this.launcherService, selectedTab);
+        dialog.setVisible(true);
+        this.refreshAccountSelector();
+        MinecraftAccount account = this.launcherService.account();
+        if (account != null) {
+            this.setStatus("Using " + account.username() + ".");
         }
+    }
+
+    @Nullable
+    private String promptForInstanceName(
+            @NotNull String title,
+            @NotNull String prompt,
+            @NotNull String initialValue
+    ) {
+        String name = (String) JOptionPane.showInputDialog(
+                this,
+                prompt,
+                title,
+                JOptionPane.PLAIN_MESSAGE,
+                null,
+                null,
+                initialValue
+        );
+        if (name == null) return null;
+        name = name.trim();
+        if (InstanceNames.isValid(name)) return name;
+        JOptionPane.showMessageDialog(
+                this,
+                "Instance names cannot be empty or contain control characters.",
+                "Invalid instance name",
+                JOptionPane.ERROR_MESSAGE
+        );
+        return null;
     }
 
     private void setModsTabVisible(boolean visible) {
@@ -768,7 +914,8 @@ public final class LauncherFrame extends JFrame {
         return result;
     }
 
-    private static String displayName(Enum<?> value) {
+    @NotNull
+    public static String displayName(@NotNull Enum<?> value) {
         String name = value.name().toLowerCase().replace('_', ' ');
         return Character.toUpperCase(name.charAt(0)) + name.substring(1);
     }
@@ -784,6 +931,8 @@ public final class LauncherFrame extends JFrame {
             JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
             if (value instanceof MinecraftInstance instance) {
                 label.setText("<html><b>" + escapeHtml(instance.name()) + "</b><br><small>" + displayName(instance.type()) + "</small></html>");
+                label.setIcon(InstanceIconProvider.INSTANCE.iconFor(instance));
+                label.setIconTextGap(10);
                 label.setBorder(BorderFactory.createEmptyBorder(6, 7, 6, 7));
             }
             return label;

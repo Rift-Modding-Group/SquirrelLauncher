@@ -1,6 +1,7 @@
 package com.anightdazingzoroark.squirrellauncher.minecraft.launch;
 
 import com.anightdazingzoroark.squirrellauncher.SquirrelLauncher;
+import com.anightdazingzoroark.squirrellauncher.launcher.LauncherSettings;
 import com.anightdazingzoroark.squirrellauncher.minecraft.MinecraftPaths;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MinecraftAccount;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
@@ -18,7 +19,12 @@ public final class MinecraftLauncher {
     private MinecraftLauncher() {}
 
     @NotNull
-    public static Process launch(@NotNull LaunchDefinition definition, @NotNull MinecraftAccount account, @NotNull MinecraftInstance instance) throws Exception {
+    public static Process launch(
+            @NotNull LaunchDefinition definition,
+            @NotNull MinecraftAccount account,
+            @NotNull MinecraftInstance instance,
+            @NotNull LauncherSettings settings
+    ) throws Exception {
         //ensure integrety
         for (LaunchComponent component : definition.components()) {
             LibraryIntegrity.repair(component);
@@ -75,12 +81,13 @@ public final class MinecraftLauncher {
             command.add(argument);
         }
 
-        //size
+        //game window
         command.add("--width");
-        command.add("1280");
+        command.add(Integer.toString(settings.windowWidth()));
 
         command.add("--height");
-        command.add("720");
+        command.add(Integer.toString(settings.windowHeight()));
+        if (settings.fullscreen()) command.add("--fullscreen");
 
         //final launch
         System.out.println();

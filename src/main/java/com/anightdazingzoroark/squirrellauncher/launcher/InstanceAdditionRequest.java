@@ -10,7 +10,8 @@ public record InstanceAdditionRequest(
         @NotNull String name,
         @Nullable InstanceType type,
         @Nullable String loaderVersion,
-        @Nullable Path archive
+        @Nullable Path archive,
+        @Nullable Path icon
 ) {
     public boolean importsInstance() {
         return this.archive != null;

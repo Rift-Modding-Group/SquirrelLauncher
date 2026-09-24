@@ -6,7 +6,13 @@ import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
 
-public record MinecraftInstance(@NotNull String id, @NotNull String name, @NotNull InstanceType type, @Nullable String loaderVersion) {
+public record MinecraftInstance(
+        @NotNull String id,
+        @NotNull String name,
+        @NotNull InstanceType type,
+        @Nullable String loaderVersion,
+        @Nullable String iconKey
+) {
     @NotNull
     public Path directory() {
         return MinecraftPaths.INSTANCES.resolve(this.id);

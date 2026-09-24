@@ -1,6 +1,7 @@
 package com.anightdazingzoroark.squirrellauncher.minecraft.instance;
 
 import com.anightdazingzoroark.squirrellauncher.SquirrelLauncher;
+import com.anightdazingzoroark.squirrellauncher.launcher.LauncherSettings;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MinecraftAccount;
 import com.anightdazingzoroark.squirrellauncher.minecraft.install.AbstractInstaller;
 import com.anightdazingzoroark.squirrellauncher.minecraft.install.CleanroomInstaller;
@@ -11,7 +12,6 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.launch.MinecraftLaunch
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public enum InstanceType {
@@ -35,7 +35,11 @@ public enum InstanceType {
     );
 
     @NotNull
-    public final BiFunction<MinecraftAccount, MinecraftInstance, Process> instanceCreator;
+    private final AbstractInstaller installer;
+    @NotNull
+    private final Function<MinecraftInstance, String> versionResolver;
+    @NotNull
+    private final LaunchDefinitionFactory definitionFactory;
     public final boolean hasMods;
 
     InstanceType(
@@ -44,17 +48,26 @@ public enum InstanceType {
             @NotNull LaunchDefinitionFactory definitionFactory,
             boolean hasMods
     ) {
-        this.instanceCreator = (account, instance) -> {
-            try {
-                Path installRoot = installer.install(versionResolver.apply(instance));
-                LaunchDefinition definition = definitionFactory.create(instance, installRoot);
-                return MinecraftLauncher.launch(definition, account, instance);
-            }
-            catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        };
+        this.installer = installer;
+        this.versionResolver = versionResolver;
+        this.definitionFactory = definitionFactory;
         this.hasMods = hasMods;
+    }
+
+    @NotNull
+    public Process launch(
+            @NotNull MinecraftAccount account,
+            @NotNull MinecraftInstance instance,
+            @NotNull LauncherSettings settings
+    ) throws Exception {
+        Path installRoot = this.installer.install(this.versionResolver.apply(instance));
+        LaunchDefinition definition = this.definitionFactory.create(instance, installRoot);
+        return MinecraftLauncher.launch(definition, account, instance, settings);
+    }
+
+    @NotNull
+    public String getIconPath() {
+        return "/icons/"+this.name().toLowerCase()+".png";
     }
 
     @FunctionalInterface

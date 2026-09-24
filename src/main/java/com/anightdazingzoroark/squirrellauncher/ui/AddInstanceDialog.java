@@ -6,23 +6,13 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.BorderFactory;
-import javax.swing.ButtonGroup;
-import javax.swing.ImageIcon;
-import javax.swing.JButton;
-import javax.swing.JDialog;
-import javax.swing.JFileChooser;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JTabbedPane;
-import javax.swing.JTextField;
-import javax.swing.JToggleButton;
+import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -34,7 +24,7 @@ public final class AddInstanceDialog extends JDialog {
     @NotNull
     private final JTextField nameField = new JTextField("", 26);
     @NotNull
-    private final JTabbedPane tabs = new JTabbedPane();
+    private final JTabbedPane tabs = new SelectedContentTabbedPane();
     @NotNull
     private final JLabel loaderLabel = new JLabel("Loader version:");
     @NotNull
@@ -43,34 +33,63 @@ public final class AddInstanceDialog extends JDialog {
     private final JTextField archiveField = new JTextField(28);
     @NotNull
     private final JButton addButton = new JButton("Add");
+    @NotNull
+    private final JButton iconButton = new JButton("Choose image…");
     @Nullable
     private InstanceAdditionRequest result;
     @NotNull
     private InstanceType selectedType = InstanceType.VANILLA;
     @Nullable
     private Path selectedArchive;
+    @Nullable
+    private Path selectedIcon;
 
     public AddInstanceDialog(@NotNull JFrame owner) {
         super(owner, "Add new instance", true);
-        this.setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+        this.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         this.setLayout(new BorderLayout(0, 12));
 
         JPanel namePanel = new JPanel(new GridBagLayout());
         namePanel.setBorder(BorderFactory.createEmptyBorder(16, 16, 0, 16));
         this.addRow(namePanel, 0, new JLabel("Instance name:"), this.nameField);
+        JButton clearIconButton = new JButton("Use type icon");
+        clearIconButton.setEnabled(false);
+        this.iconButton.addActionListener(event -> {
+            JFileChooser chooser = new JFileChooser();
+            chooser.setDialogTitle("Choose instance icon");
+            chooser.setFileFilter(new FileNameExtensionFilter(
+                    "Images (*.png, *.jpg, *.jpeg, *.gif, *.bmp)",
+                    "png", "jpg", "jpeg", "gif", "bmp"
+            ));
+            if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
+            this.selectedIcon = chooser.getSelectedFile().toPath();
+            this.iconButton.setText(this.selectedIcon.getFileName().toString());
+            clearIconButton.setEnabled(true);
+            this.resizeToContent();
+        });
+        clearIconButton.addActionListener(event -> {
+            this.selectedIcon = null;
+            this.iconButton.setText("Choose image…");
+            clearIconButton.setEnabled(false);
+            this.resizeToContent();
+        });
+        JPanel iconControls = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        iconControls.add(this.iconButton);
+        iconControls.add(clearIconButton);
+        this.addRow(namePanel, 1, new JLabel("Instance icon:"), iconControls);
         this.add(namePanel, BorderLayout.NORTH);
 
         ButtonGroup typeGroup = new ButtonGroup();
         JPanel typePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
         JToggleButton vanillaButton = this.createTypeButton(
-                "Vanilla", InstanceType.VANILLA, "/icons/vanilla.png", typeGroup
+                "Vanilla", InstanceType.VANILLA, InstanceType.VANILLA.getIconPath(), typeGroup
         );
         typePanel.add(vanillaButton);
         typePanel.add(this.createTypeButton(
-                "Forge", InstanceType.FORGE, "/icons/forge.png", typeGroup
+                "Forge", InstanceType.FORGE, InstanceType.FORGE.getIconPath(), typeGroup
         ));
         typePanel.add(this.createTypeButton(
-                "Cleanroom", InstanceType.CLEANROOM, "/icons/cleanroom.png", typeGroup
+                "Cleanroom", InstanceType.CLEANROOM, InstanceType.CLEANROOM.getIconPath(), typeGroup
         ));
         vanillaButton.setSelected(true);
 
@@ -124,7 +143,7 @@ public final class AddInstanceDialog extends JDialog {
 
             if (this.tabs.getSelectedIndex() == 1) {
                 if (this.selectedArchive == null) return;
-                this.result = new InstanceAdditionRequest(name, null, null, this.selectedArchive);
+                this.result = new InstanceAdditionRequest(name, null, null, this.selectedArchive, this.selectedIcon);
             }
             else {
                 String loaderVersion = this.loaderField.getText().trim();
@@ -133,7 +152,8 @@ public final class AddInstanceDialog extends JDialog {
                         name,
                         this.selectedType,
                         this.selectedType.hasMods ? loaderVersion : null,
-                        null
+                        null,
+                        this.selectedIcon
                 );
             }
             this.dispose();
@@ -148,10 +168,13 @@ public final class AddInstanceDialog extends JDialog {
 
         this.nameField.getDocument().addDocumentListener(new FieldListener(this::updateAddButton));
         this.loaderField.getDocument().addDocumentListener(new FieldListener(this::updateAddButton));
-        this.tabs.addChangeListener(event -> this.updateAddButton());
+        this.tabs.addChangeListener(event -> {
+            this.updateAddButton();
+            this.resizeToContent();
+        });
         this.updateLoaderField();
         this.updateAddButton();
-        this.pack();
+        this.resizeToContent();
         this.setResizable(false);
         this.setLocationRelativeTo(owner);
     }
@@ -192,6 +215,7 @@ public final class AddInstanceDialog extends JDialog {
         else if (this.selectedType == InstanceType.CLEANROOM) this.loaderField.setText("0.6.13-alpha");
         else this.loaderField.setText("");
         this.updateAddButton();
+        this.resizeToContent();
     }
 
     private void updateAddButton() {
@@ -200,6 +224,10 @@ public final class AddInstanceDialog extends JDialog {
                 ? this.selectedArchive != null
                 : !this.selectedType.hasMods || !this.loaderField.getText().isBlank();
         this.addButton.setEnabled(validName && validSelection);
+    }
+
+    private void resizeToContent() {
+        this.pack();
     }
 
     private void addRow(@NotNull JPanel panel, int row, @NotNull JLabel label, @NotNull Component component) {
@@ -233,6 +261,31 @@ public final class AddInstanceDialog extends JDialog {
         @Override
         public void changedUpdate(@NotNull DocumentEvent event) {
             this.callback.run();
+        }
+    }
+
+    private static final class SelectedContentTabbedPane extends JTabbedPane {
+        private static final long serialVersionUID = 1L;
+
+        @Override
+        @NotNull
+        public Dimension getPreferredSize() {
+            Dimension preferredSize = super.getPreferredSize();
+            Component selectedComponent = this.getSelectedComponent();
+            if (selectedComponent == null) return preferredSize;
+
+            int maximumContentHeight = 0;
+            for (int index = 0; index < this.getTabCount(); index++) {
+                maximumContentHeight = Math.max(
+                        maximumContentHeight,
+                        this.getComponentAt(index).getPreferredSize().height
+                );
+            }
+            int selectedContentHeight = selectedComponent.getPreferredSize().height;
+            return new Dimension(
+                    preferredSize.width,
+                    preferredSize.height - maximumContentHeight + selectedContentHeight
+            );
         }
     }
 }

@@ -1,10 +1,13 @@
 package com.anightdazingzoroark.squirrellauncher.launcher;
 
 import com.anightdazingzoroark.squirrellauncher.minecraft.MinecraftPaths;
+import com.anightdazingzoroark.squirrellauncher.minecraft.auth.AccountManager;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MicrosoftAuthenticator;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MinecraftAccount;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceManager;
+import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceIconManager;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
+import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceType;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ManagedMod;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModManager;
 import com.anightdazingzoroark.squirrellauncher.minecraft.modpack.MMCPackManager;
@@ -13,6 +16,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
@@ -20,40 +24,61 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-/** UI-independent orchestration for the launcher workflows. */
+/**
+ * UI-independent orchestration for the launcher workflows.
+ * */
 public final class LauncherService implements AutoCloseable {
+    @NotNull
     private final LauncherOutputBridge outputBridge;
-    private volatile MinecraftAccount account = MinecraftAccount.offline("Squirrel");
+    @NotNull
+    private final AccountManager accountManager = new AccountManager();
+    @NotNull
+    private final LauncherSettingsManager settingsManager = new LauncherSettingsManager();
 
     public LauncherService(@NotNull Consumer<String> outputListener) {
         this.outputBridge = new LauncherOutputBridge(outputListener);
     }
 
-    @NotNull
+    //---account stuff---
+    @Nullable
     public MinecraftAccount account() {
-        return this.account;
+        return this.accountManager.selectedAccount();
     }
 
     @NotNull
-    public MinecraftAccount useOfflineAccount(@NotNull String username) {
-        String normalized = username.trim();
-        if (normalized.isEmpty()) normalized = "Squirrel";
-        if (!normalized.matches("[A-Za-z0-9_]{1,16}")) {
-            throw new IllegalArgumentException(
-                    "Offline username must contain 1-16 letters, numbers, or underscores."
-            );
-        }
-        this.account = MinecraftAccount.offline(normalized);
-        return this.account;
+    public List<MinecraftAccount> accounts() {
+        return this.accountManager.accounts();
     }
 
     @NotNull
-    public MinecraftAccount signInWithMicrosoft() throws Exception {
-        MinecraftAccount signedIn = MicrosoftAuthenticator.login();
-        this.account = signedIn;
-        return signedIn;
+    public MinecraftAccount addOfflineAccount(@NotNull String username) throws Exception {
+        return this.accountManager.addOfflineAccount(username);
     }
 
+    @NotNull
+    public MinecraftAccount addMicrosoftAccount(@NotNull Consumer<MicrosoftAuthenticator.DeviceCode> deviceCodeConsumer) throws Exception {
+        return this.accountManager.addMicrosoftAccount(deviceCodeConsumer);
+    }
+
+    public void selectAccount(@NotNull MinecraftAccount account) throws Exception {
+        this.accountManager.select(account);
+    }
+
+    public void removeAccount(@NotNull MinecraftAccount account) throws Exception {
+        this.accountManager.remove(account);
+    }
+
+    //---settings stuff---
+    @NotNull
+    public LauncherSettings settings() {
+        return this.settingsManager.settings();
+    }
+
+    public void updateSettings(@NotNull LauncherSettings settings) throws Exception {
+        this.settingsManager.update(settings);
+    }
+
+    //---instance stuff---
     @NotNull
     public List<MinecraftInstance> listInstances() throws Exception {
         return InstanceManager.list();
@@ -66,17 +91,91 @@ public final class LauncherService implements AutoCloseable {
             throw new IllegalArgumentException("Instance name cannot be empty or contain control characters.");
         }
         String instanceId = this.availableInstanceId(name, null);
+        MinecraftInstance instance;
         if (request.importsInstance()) {
-            return MMCPackManager.importPack(request.archive(), instanceId, name);
+            instance = MMCPackManager.importPack(request.archive(), instanceId, name);
         }
+        else {
+            if (request.type() == null) throw new IllegalArgumentException("Instance type is missing.");
+            String loaderVersion = request.type().hasMods ? request.loaderVersion() : null;
+            if (loaderVersion != null) loaderVersion = loaderVersion.trim();
+            if (request.type().hasMods && (loaderVersion == null || loaderVersion.isEmpty())) {
+                throw new IllegalArgumentException("A loader version is required for " + request.type() + ".");
+            }
+            instance = InstanceManager.create(instanceId, name, request.type(), loaderVersion);
+        }
+        if (request.icon() == null) return instance;
+        try {
+            return InstanceIconManager.assign(instance, request.icon());
+        }
+        catch (Exception exception) {
+            try {
+                this.deleteDirectory(instance.directory());
+            }
+            catch (Exception rollbackException) {
+                exception.addSuppressed(rollbackException);
+            }
+            throw exception;
+        }
+    }
 
-        if (request.type() == null) throw new IllegalArgumentException("Instance type is missing.");
-        String loaderVersion = request.type().hasMods ? request.loaderVersion() : null;
-        if (loaderVersion != null) loaderVersion = loaderVersion.trim();
-        if (request.type().hasMods && (loaderVersion == null || loaderVersion.isEmpty())) {
-            throw new IllegalArgumentException("A loader version is required for " + request.type() + ".");
+    @NotNull
+    public MinecraftInstance duplicateInstance(@NotNull MinecraftInstance instance, @NotNull String name) throws Exception {
+        if (!InstanceNames.isValid(name)) {
+            throw new IllegalArgumentException("Instance name cannot be empty or contain control characters.");
         }
-        return InstanceManager.create(instanceId, name, request.type(), loaderVersion);
+        MinecraftInstance sourceInstance = InstanceManager.load(instance.id());
+        String instanceId = this.availableInstanceId(name, null);
+        Path destination = MinecraftPaths.INSTANCES.resolve(instanceId);
+        Files.createDirectories(MinecraftPaths.INSTANCES);
+        Path staging = Files.createTempDirectory(MinecraftPaths.INSTANCES, ".copy-");
+        boolean moved = false;
+        try {
+            try (Stream<Path> paths = Files.walk(sourceInstance.directory())) {
+                java.util.Iterator<Path> iterator = paths.iterator();
+                while (iterator.hasNext()) {
+                    Path source = iterator.next();
+                    Path relative = sourceInstance.directory().relativize(source);
+                    if (relative.toString().isEmpty()) continue;
+                    Path target = staging.resolve(relative);
+                    if (Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS)) {
+                        Files.createDirectories(target);
+                    }
+                    else {
+                        Files.createDirectories(target.getParent());
+                        Files.copy(source, target, LinkOption.NOFOLLOW_LINKS, StandardCopyOption.COPY_ATTRIBUTES);
+                    }
+                }
+            }
+            InstanceManager.setName(staging, name);
+            InstanceManager.loadFromDirectory(instanceId, staging);
+            try {
+                Files.move(staging, destination, StandardCopyOption.ATOMIC_MOVE);
+            }
+            catch (AtomicMoveNotSupportedException exception) {
+                Files.move(staging, destination);
+            }
+            moved = true;
+            return InstanceManager.load(instanceId);
+        }
+        finally {
+            if (!moved && Files.exists(staging)) this.deleteDirectory(staging);
+        }
+    }
+
+    @NotNull
+    public MinecraftInstance convertInstance(@NotNull MinecraftInstance instance, @NotNull InstanceType type, @Nullable String loaderVersion) throws Exception {
+        return InstanceManager.convert(instance, type, loaderVersion);
+    }
+
+    @NotNull
+    public MinecraftInstance setInstanceIcon(@NotNull MinecraftInstance instance, @NotNull Path source) throws Exception {
+        return InstanceIconManager.assign(instance, source);
+    }
+
+    @NotNull
+    public MinecraftInstance resetInstanceIcon(@NotNull MinecraftInstance instance) throws Exception {
+        return InstanceIconManager.reset(instance);
     }
 
     @NotNull
@@ -129,50 +228,7 @@ public final class LauncherService implements AutoCloseable {
             throw new IllegalArgumentException("Instance does not exist: " + instance.name());
         }
 
-        try (Stream<Path> paths = Files.walk(instanceDirectory)) {
-            for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
-                Files.delete(path);
-            }
-        }
-    }
-
-    @NotNull
-    public List<ManagedMod> listMods(@NotNull MinecraftInstance instance) throws Exception {
-        return new ModManager(instance).list();
-    }
-
-    public void installMod(@NotNull MinecraftInstance instance, @NotNull Path source) throws Exception {
-        new ModManager(instance).install(source);
-    }
-
-    public void setModEnabled(
-            @NotNull MinecraftInstance instance,
-            @NotNull ManagedMod mod,
-            boolean enabled
-    ) throws Exception {
-        ModManager manager = new ModManager(instance);
-        if (enabled) manager.enable(mod.fileName());
-        else manager.disable(mod.fileName());
-    }
-
-    public void removeMod(@NotNull MinecraftInstance instance, @NotNull ManagedMod mod) throws Exception {
-        new ModManager(instance).remove(mod.fileName());
-    }
-
-    @NotNull
-    public Process launch(@NotNull MinecraftInstance instance) throws Exception {
-        try {
-            return instance.type().instanceCreator.apply(this.account, instance);
-        }
-        catch (RuntimeException exception) {
-            if (exception.getCause() instanceof Exception cause) throw cause;
-            throw exception;
-        }
-    }
-
-    @Override
-    public void close() {
-        this.outputBridge.close();
+        this.deleteDirectory(instanceDirectory);
     }
 
     @NotNull
@@ -185,5 +241,43 @@ public final class LauncherService implements AutoCloseable {
             candidate = baseName + "(" + suffix + ")";
         }
         return candidate;
+    }
+
+    private void deleteDirectory(@NotNull Path directory) throws Exception {
+        try (Stream<Path> paths = Files.walk(directory)) {
+            for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.delete(path);
+        }
+    }
+
+    //---mod stuff---
+    @NotNull
+    public List<ManagedMod> listMods(@NotNull MinecraftInstance instance) throws Exception {
+        return new ModManager(instance).list();
+    }
+
+    public void installMod(@NotNull MinecraftInstance instance, @NotNull Path source) throws Exception {
+        new ModManager(instance).install(source);
+    }
+
+    public void setModEnabled(@NotNull MinecraftInstance instance, @NotNull ManagedMod mod, boolean enabled) throws Exception {
+        ModManager manager = new ModManager(instance);
+        if (enabled) manager.enable(mod.fileName());
+        else manager.disable(mod.fileName());
+    }
+
+    public void removeMod(@NotNull MinecraftInstance instance, @NotNull ManagedMod mod) throws Exception {
+        new ModManager(instance).remove(mod.fileName());
+    }
+
+    //---game stuff---
+    @NotNull
+    public Process launch(@NotNull MinecraftInstance instance) throws Exception {
+        MinecraftAccount account = this.accountManager.prepareSelectedAccount();
+        return instance.type().launch(account, instance, this.settingsManager.settings());
+    }
+
+    @Override
+    public void close() {
+        this.outputBridge.close();
     }
 }
