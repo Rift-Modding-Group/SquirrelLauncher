@@ -1,27 +1,23 @@
 package com.anightdazingzoroark.squirrellauncher.ui.settings;
 
 import com.anightdazingzoroark.squirrellauncher.ui.Localization;
+import org.jetbrains.annotations.NotNull;
 
-import javax.swing.BorderFactory;
 import javax.swing.JEditorPane;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
-import javax.swing.JPanel;
 import javax.swing.event.HyperlinkEvent;
 import java.awt.Desktop;
-import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.net.URI;
 
-public final class AboutSettingsPanel extends JPanel {
+public final class AboutSettingsPanel extends AbstractSettingsPanel {
     public AboutSettingsPanel() {
         super(new GridBagLayout());
-        this.setBorder(BorderFactory.createEmptyBorder(28, 28, 28, 28));
 
-        JLabel heading = new JLabel(Localization.text("about.heading"));
-        heading.setFont(heading.getFont().deriveFont(Font.BOLD, 24f));
+        JLabel heading = this.createHeader();
         GridBagConstraints title = new GridBagConstraints();
         title.gridx = 0;
         title.gridy = 0;
@@ -61,5 +57,11 @@ public final class AboutSettingsPanel extends JPanel {
         linkConstraints.fill = GridBagConstraints.BOTH;
         linkConstraints.anchor = GridBagConstraints.FIRST_LINE_START;
         this.add(description, linkConstraints);
+    }
+
+    @Override
+    @NotNull
+    public String header() {
+        return Localization.text("about.heading");
     }
 }

@@ -9,7 +9,6 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInst
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceType;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ManagedMod;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModState;
-import com.anightdazingzoroark.squirrellauncher.ui.settings.SettingsDialog;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -152,7 +151,7 @@ public final class LauncherFrame extends JFrame {
         this.refreshInstances(null);
         SwingUtilities.invokeLater(() -> {
             if (this.launcherService.accounts().isEmpty()) {
-                this.showSettings(SettingsDialog.Tab.ACCOUNTS);
+                this.showSettings(SquirrelLauncherDialog.SettingsTab.ACCOUNTS);
                 MinecraftAccount account = this.launcherService.account();
                 if (account != null) {
                     this.appendActivity(Localization.text("main.activity.account_setup", account.username()));
@@ -398,12 +397,10 @@ public final class LauncherFrame extends JFrame {
                 this.refreshAccountSelector();
             }
         });
-        this.manageAccountsButton.addActionListener(event -> this.showSettings(SettingsDialog.Tab.ACCOUNTS));
-        this.settingsButton.addActionListener(event -> this.showSettings(SettingsDialog.Tab.GAME));
+        this.manageAccountsButton.addActionListener(event -> this.showSettings(SquirrelLauncherDialog.SettingsTab.ACCOUNTS));
+        this.settingsButton.addActionListener(event -> this.showSettings(SquirrelLauncherDialog.SettingsTab.GAME));
         this.addInstanceButton.addActionListener(event -> {
-            AddInstanceDialog dialog = new AddInstanceDialog(this);
-            dialog.setVisible(true);
-            InstanceAdditionRequest request = dialog.result();
+            InstanceAdditionRequest request = SquirrelLauncherDialog.showAddInstanceDialog(this);
             if (request == null) return;
 
             this.runTask(
@@ -466,15 +463,17 @@ public final class LauncherFrame extends JFrame {
         this.convertInstanceItem.addActionListener(event -> {
             MinecraftInstance instance = this.selectedInstance();
             if (instance == null || this.runningProcess != null) return;
-            ConvertInstanceDialog dialog = new ConvertInstanceDialog(this, instance);
-            dialog.setVisible(true);
-            InstanceType type = dialog.selectedType();
-            if (type == null) return;
-            String loaderVersion = dialog.loaderVersion();
+            SquirrelLauncherDialog.InstanceConversion conversion =
+                    SquirrelLauncherDialog.showConvertInstanceDialog(this, instance);
+            if (conversion == null) return;
 
             this.runTask(
                     Localization.text("main.status.converting", instance.name()),
-                    () -> this.launcherService.convertInstance(instance, type, loaderVersion),
+                    () -> this.launcherService.convertInstance(
+                            instance,
+                            conversion.type(),
+                            conversion.loaderVersion()
+                    ),
                     converted -> {
                         this.appendActivity(Localization.text(
                                 "main.activity.converted",
@@ -845,9 +844,8 @@ public final class LauncherFrame extends JFrame {
         this.updateControlState();
     }
 
-    private void showSettings(@NotNull SettingsDialog.Tab selectedTab) {
-        SettingsDialog dialog = new SettingsDialog(this, this.launcherService, selectedTab);
-        dialog.setVisible(true);
+    private void showSettings(@NotNull SquirrelLauncherDialog.SettingsTab selectedTab) {
+        SquirrelLauncherDialog.showSettingsDialog(this, this.launcherService, selectedTab);
         this.refreshAccountSelector();
         MinecraftAccount account = this.launcherService.account();
         if (account != null) {

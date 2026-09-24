@@ -34,7 +34,7 @@ import java.awt.event.MouseEvent;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
-public final class AccountSettingsPanel extends JPanel {
+public final class AccountSettingsPanel extends AbstractSettingsPanel {
     @NotNull
     private final LauncherService launcherService;
     @NotNull
@@ -72,11 +72,9 @@ public final class AccountSettingsPanel extends JPanel {
         super(new BorderLayout(0, 10));
         this.launcherService = launcherService;
         this.busyListener = busyListener;
-        this.setBorder(BorderFactory.createEmptyBorder(14, 14, 14, 14));
 
         JPanel headingPanel = new JPanel(new BorderLayout(0, 5));
-        JLabel heading = new JLabel(Localization.text("accounts.heading"));
-        heading.setFont(heading.getFont().deriveFont(Font.BOLD, 20f));
+        JLabel heading = this.createHeader();
         headingPanel.add(heading, BorderLayout.NORTH);
         headingPanel.add(new JLabel(this.launcherService.accounts().isEmpty()
                 ? Localization.text("accounts.intro.empty")
@@ -290,6 +288,12 @@ public final class AccountSettingsPanel extends JPanel {
         this.useButton.addActionListener(event -> this.selectAccount());
 
         this.refreshAccounts(this.launcherService.account());
+    }
+
+    @Override
+    @NotNull
+    public String header() {
+        return Localization.text("accounts.heading");
     }
 
     private void selectAccount() {

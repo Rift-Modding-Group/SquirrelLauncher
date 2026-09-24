@@ -6,25 +6,22 @@ import com.anightdazingzoroark.squirrellauncher.launcher.LauncherSettings;
 import com.anightdazingzoroark.squirrellauncher.ui.Localization;
 import org.jetbrains.annotations.NotNull;
 
-import javax.swing.BorderFactory;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JList;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 
 /** Settings that control the launcher itself. */
-public final class LauncherSettingsPanel extends JPanel {
+public final class LauncherSettingsPanel extends AbstractSettingsPanel {
     @NotNull
     private final LauncherService launcherService;
     @NotNull
@@ -35,7 +32,6 @@ public final class LauncherSettingsPanel extends JPanel {
     public LauncherSettingsPanel(@NotNull LauncherService launcherService) {
         super(new BorderLayout());
         this.launcherService = launcherService;
-        this.setBorder(BorderFactory.createEmptyBorder(18, 18, 18, 18));
         this.languageSelector.setSelectedItem(this.launcherService.settings().language());
         this.languageSelector.setPreferredSize(new Dimension(240, 28));
         this.languageSelector.setRenderer(new DefaultListCellRenderer() {
@@ -62,8 +58,7 @@ public final class LauncherSettingsPanel extends JPanel {
         });
 
         JPanel form = new JPanel(new GridBagLayout());
-        JLabel heading = new JLabel(Localization.text("settings.launcher.heading"));
-        heading.setFont(heading.getFont().deriveFont(Font.BOLD, 20f));
+        JLabel heading = this.createHeader();
         GridBagConstraints title = new GridBagConstraints();
         title.gridx = 0;
         title.gridy = 0;
@@ -125,17 +120,16 @@ public final class LauncherSettingsPanel extends JPanel {
                 this.updateControlState();
             }
             catch (Exception exception) {
-                String message = exception.getMessage();
-                if (message == null || message.isBlank()) message = exception.getClass().getSimpleName();
-                JOptionPane.showMessageDialog(
-                        this,
-                        message,
-                        Localization.text("settings.error.save"),
-                        JOptionPane.ERROR_MESSAGE
-                );
+                this.showSaveError(exception);
             }
         });
         this.updateControlState();
+    }
+
+    @Override
+    @NotNull
+    public String header() {
+        return Localization.text("settings.launcher.heading");
     }
 
     private void updateControlState() {

@@ -5,23 +5,20 @@ import com.anightdazingzoroark.squirrellauncher.launcher.LauncherSettings;
 import com.anightdazingzoroark.squirrellauncher.ui.Localization;
 import org.jetbrains.annotations.NotNull;
 
-import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 
-public final class GameSettingsPanel extends JPanel {
+public final class GameSettingsPanel extends AbstractSettingsPanel {
     @NotNull
     private final LauncherService launcherService;
     @NotNull
@@ -36,7 +33,6 @@ public final class GameSettingsPanel extends JPanel {
     public GameSettingsPanel(@NotNull LauncherService launcherService) {
         super(new BorderLayout());
         this.launcherService = launcherService;
-        this.setBorder(BorderFactory.createEmptyBorder(18, 18, 18, 18));
 
         LauncherSettings settings = this.launcherService.settings();
         this.fullscreenCheckBox.setSelected(settings.fullscreen());
@@ -44,8 +40,7 @@ public final class GameSettingsPanel extends JPanel {
         this.windowHeightSpinner.setValue(settings.windowHeight());
 
         JPanel form = new JPanel(new GridBagLayout());
-        JLabel heading = new JLabel(Localization.text("settings.game.heading"));
-        heading.setFont(heading.getFont().deriveFont(Font.BOLD, 20f));
+        JLabel heading = this.createHeader();
         GridBagConstraints title = new GridBagConstraints();
         title.gridx = 0;
         title.gridy = 0;
@@ -122,17 +117,16 @@ public final class GameSettingsPanel extends JPanel {
                 this.updateControlState();
             }
             catch (Exception exception) {
-                String message = exception.getMessage();
-                if (message == null || message.isBlank()) message = exception.getClass().getSimpleName();
-                JOptionPane.showMessageDialog(
-                        this,
-                        message,
-                        Localization.text("settings.error.save"),
-                        JOptionPane.ERROR_MESSAGE
-                );
+                this.showSaveError(exception);
             }
         });
         this.updateControlState();
+    }
+
+    @Override
+    @NotNull
+    public String header() {
+        return Localization.text("settings.game.heading");
     }
 
     private void updateControlState() {
