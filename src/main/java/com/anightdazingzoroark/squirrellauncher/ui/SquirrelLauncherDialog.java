@@ -5,10 +5,6 @@ import com.anightdazingzoroark.squirrellauncher.launcher.InstanceNames;
 import com.anightdazingzoroark.squirrellauncher.launcher.LauncherService;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceType;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
-import com.anightdazingzoroark.squirrellauncher.ui.settings.AboutSettingsPanel;
-import com.anightdazingzoroark.squirrellauncher.ui.settings.AccountSettingsPanel;
-import com.anightdazingzoroark.squirrellauncher.ui.settings.GameSettingsPanel;
-import com.anightdazingzoroark.squirrellauncher.ui.settings.LauncherSettingsPanel;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -397,15 +393,15 @@ public abstract class SquirrelLauncherDialog<T> extends JDialog {
 
                 this.tabs.addTab(
                         Localization.text("settings.tab.game"),
-                        new GameSettingsPanel(launcherService)
+                        SquirrelLauncherSettingsPanel.createGameSettingsTab(launcherService)
                 );
                 this.tabs.addTab(
                         Localization.text("settings.tab.launcher"),
-                        new LauncherSettingsPanel(launcherService)
+                        SquirrelLauncherSettingsPanel.createLauncherSettingsTab(launcherService)
                 );
                 this.tabs.addTab(
                         Localization.text("settings.tab.accounts"),
-                        new AccountSettingsPanel(launcherService, busy -> {
+                        SquirrelLauncherSettingsPanel.createAccountSettingsTab(launcherService, busy -> {
                             this.setDefaultCloseOperation(
                                     busy ? WindowConstants.DO_NOTHING_ON_CLOSE : WindowConstants.DISPOSE_ON_CLOSE
                             );
@@ -414,7 +410,10 @@ public abstract class SquirrelLauncherDialog<T> extends JDialog {
                             this.tabs.setEnabledAt(SettingsTab.ABOUT.ordinal(), !busy);
                         })
                 );
-                this.tabs.addTab(Localization.text("settings.tab.about"), new AboutSettingsPanel());
+                this.tabs.addTab(
+                        Localization.text("settings.tab.about"),
+                        SquirrelLauncherSettingsPanel.createAboutSettingsTab()
+                );
 
                 this.tabs.setSelectedIndex(selectedTab.ordinal());
                 this.tabs.setBorder(BorderFactory.createEmptyBorder(10, 10, 0, 10));
