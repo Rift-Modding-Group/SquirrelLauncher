@@ -53,7 +53,7 @@ final class LauncherOutputBridge implements AutoCloseable {
         }
 
         @Override
-        public synchronized void write(byte[] bytes, int offset, int length) {
+        public synchronized void write(byte @NotNull [] bytes, int offset, int length) {
             for (int index = offset; index < offset + length; index++) write(bytes[index]);
         }
 

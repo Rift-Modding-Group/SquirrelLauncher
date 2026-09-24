@@ -32,7 +32,10 @@ public final class LauncherSettingsManager {
             this.settings = new LauncherSettings(
                     root.has("fullscreen") && root.get("fullscreen").getAsBoolean(),
                     root.has("windowWidth") ? root.get("windowWidth").getAsInt() : 1280,
-                    root.has("windowHeight") ? root.get("windowHeight").getAsInt() : 720
+                    root.has("windowHeight") ? root.get("windowHeight").getAsInt() : 720,
+                    root.has("language")
+                            ? LauncherLanguage.fromCode(root.get("language").getAsString())
+                            : LauncherLanguage.systemDefault()
             );
         }
         catch (Exception exception) {
@@ -54,6 +57,7 @@ public final class LauncherSettingsManager {
         root.addProperty("fullscreen", settings.fullscreen());
         root.addProperty("windowWidth", settings.windowWidth());
         root.addProperty("windowHeight", settings.windowHeight());
+        root.addProperty("language", settings.language().code());
 
         Path settingsFile = MinecraftPaths.SETTINGS;
         Files.createDirectories(settingsFile.getParent());

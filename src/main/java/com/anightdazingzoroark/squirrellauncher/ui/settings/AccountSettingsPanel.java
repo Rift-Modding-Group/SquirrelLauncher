@@ -3,6 +3,7 @@ package com.anightdazingzoroark.squirrellauncher.ui.settings;
 import com.anightdazingzoroark.squirrellauncher.launcher.LauncherService;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MinecraftAccount;
 import com.anightdazingzoroark.squirrellauncher.ui.AccountIconProvider;
+import com.anightdazingzoroark.squirrellauncher.ui.Localization;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -43,15 +44,15 @@ public final class AccountSettingsPanel extends JPanel {
     @NotNull
     private final JList<MinecraftAccount> accountList = new JList<>(this.accountModel);
     @NotNull
-    private final JButton addMicrosoftButton = new JButton("Add Microsoft account");
+    private final JButton addMicrosoftButton = new JButton(Localization.text("accounts.button.add_microsoft"));
     @NotNull
-    private final JButton cancelMicrosoftButton = new JButton("Cancel sign in");
+    private final JButton cancelMicrosoftButton = new JButton(Localization.text("accounts.button.cancel_sign_in"));
     @NotNull
-    private final JButton addOfflineButton = new JButton("Add offline account…");
+    private final JButton addOfflineButton = new JButton(Localization.text("accounts.button.add_offline"));
     @NotNull
-    private final JButton removeButton = new JButton("Remove");
+    private final JButton removeButton = new JButton(Localization.text("accounts.button.remove"));
     @NotNull
-    private final JButton useButton = new JButton("Use selected account");
+    private final JButton useButton = new JButton(Localization.text("accounts.button.use"));
     @NotNull
     private final JLabel statusLabel = new JLabel(" ");
     @NotNull
@@ -74,12 +75,12 @@ public final class AccountSettingsPanel extends JPanel {
         this.setBorder(BorderFactory.createEmptyBorder(14, 14, 14, 14));
 
         JPanel headingPanel = new JPanel(new BorderLayout(0, 5));
-        JLabel heading = new JLabel("Minecraft accounts");
+        JLabel heading = new JLabel(Localization.text("accounts.heading"));
         heading.setFont(heading.getFont().deriveFont(Font.BOLD, 20f));
         headingPanel.add(heading, BorderLayout.NORTH);
         headingPanel.add(new JLabel(this.launcherService.accounts().isEmpty()
-                ? "Add a Microsoft account to get started."
-                : "Choose the account used when Minecraft launches."), BorderLayout.SOUTH);
+                ? Localization.text("accounts.intro.empty")
+                : Localization.text("accounts.intro.choose")), BorderLayout.SOUTH);
         this.add(headingPanel, BorderLayout.NORTH);
 
         this.accountList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -98,9 +99,16 @@ public final class AccountSettingsPanel extends JPanel {
                 );
                 MinecraftAccount account = (MinecraftAccount) value;
                 MinecraftAccount activeAccount = AccountSettingsPanel.this.launcherService.account();
-                String type = account.type() == MinecraftAccount.AccountType.MICROSOFT ? "Microsoft" : "Offline";
-                String active = activeAccount != null && activeAccount.key().equals(account.key()) ? " • Active" : "";
-                label.setText("<html><b>" + account.username() + "</b><br>" + type + " account" + active + "</html>");
+                String type = account.type() == MinecraftAccount.AccountType.MICROSOFT
+                        ? Localization.text("account.type.microsoft")
+                        : Localization.text("account.type.offline");
+                String active = activeAccount != null && activeAccount.key().equals(account.key())
+                        ? Localization.text("account.active")
+                        : "";
+                label.setText(
+                        "<html><b>" + account.username() + "</b><br>"
+                                + Localization.text("account.type.account", type) + active + "</html>"
+                );
                 label.setIcon(AccountIconProvider.INSTANCE.iconFor(
                         account,
                         AccountSettingsPanel.this.accountList::repaint
@@ -180,24 +188,24 @@ public final class AccountSettingsPanel extends JPanel {
         this.addOfflineButton.addActionListener(event -> {
             String username = JOptionPane.showInputDialog(
                     this,
-                    "Offline username (1-16 letters, numbers, or underscores):",
-                    "Add offline account",
+                    Localization.text("accounts.prompt.offline"),
+                    Localization.text("accounts.dialog.add_offline"),
                     JOptionPane.PLAIN_MESSAGE
             );
             if (username == null) return;
             try {
                 MinecraftAccount account = this.launcherService.addOfflineAccount(username);
-                this.statusLabel.setText("Added offline account " + account.username() + ".");
+                this.statusLabel.setText(Localization.text("accounts.status.added_offline", account.username()));
                 this.refreshAccounts(account);
             }
             catch (Exception exception) {
-                this.showError("Could not add offline account", exception);
+                this.showError(Localization.text("accounts.error.add_offline"), exception);
             }
         });
         this.addMicrosoftButton.addActionListener(event -> {
             if (this.busy) return;
             this.setBusy(true);
-            this.statusLabel.setText("Starting Microsoft sign in…");
+            this.statusLabel.setText(Localization.text("accounts.status.starting_microsoft"));
             this.verificationLabel.setText(" ");
             this.codeField.setText("");
             this.codeField.setVisible(false);
@@ -207,12 +215,12 @@ public final class AccountSettingsPanel extends JPanel {
                     return AccountSettingsPanel.this.launcherService.addMicrosoftAccount(deviceCode ->
                             SwingUtilities.invokeLater(() -> {
                                 AccountSettingsPanel.this.verificationLabel.setText(
-                                        "Enter this code at " + deviceCode.verificationUri() + ":"
+                                        Localization.text("accounts.verification", deviceCode.verificationUri())
                                 );
                                 AccountSettingsPanel.this.codeField.setText(deviceCode.userCode());
                                 AccountSettingsPanel.this.codeField.setVisible(true);
                                 AccountSettingsPanel.this.statusLabel.setText(
-                                        "Waiting for Microsoft sign in in your browser…"
+                                        Localization.text("accounts.status.waiting_microsoft")
                                 );
                             })
                     );
@@ -225,13 +233,15 @@ public final class AccountSettingsPanel extends JPanel {
                     if (this.isCancelled()) {
                         AccountSettingsPanel.this.verificationLabel.setText(" ");
                         AccountSettingsPanel.this.codeField.setVisible(false);
-                        AccountSettingsPanel.this.statusLabel.setText("Microsoft sign in cancelled.");
+                        AccountSettingsPanel.this.statusLabel.setText(
+                                Localization.text("accounts.status.microsoft_cancelled")
+                        );
                         return;
                     }
                     try {
                         MinecraftAccount account = this.get();
                         AccountSettingsPanel.this.statusLabel.setText(
-                                "Added Microsoft account " + account.username() + "."
+                                Localization.text("accounts.status.added_microsoft", account.username())
                         );
                         AccountSettingsPanel.this.verificationLabel.setText(" ");
                         AccountSettingsPanel.this.codeField.setVisible(false);
@@ -239,11 +249,14 @@ public final class AccountSettingsPanel extends JPanel {
                     }
                     catch (InterruptedException exception) {
                         Thread.currentThread().interrupt();
-                        AccountSettingsPanel.this.showError("Microsoft sign in was interrupted", exception);
+                        AccountSettingsPanel.this.showError(
+                                Localization.text("accounts.error.microsoft_interrupted"),
+                                exception
+                        );
                     }
                     catch (ExecutionException exception) {
                         AccountSettingsPanel.this.showError(
-                                "Could not add Microsoft account",
+                                Localization.text("accounts.error.add_microsoft"),
                                 exception.getCause()
                         );
                     }
@@ -259,19 +272,19 @@ public final class AccountSettingsPanel extends JPanel {
             if (account == null) return;
             int choice = JOptionPane.showConfirmDialog(
                     this,
-                    "Remove " + account.username() + " from SquirrelLauncher?",
-                    "Remove account",
+                    Localization.text("accounts.confirm.remove", account.username()),
+                    Localization.text("accounts.dialog.remove"),
                     JOptionPane.OK_CANCEL_OPTION,
                     JOptionPane.WARNING_MESSAGE
             );
             if (choice != JOptionPane.OK_OPTION) return;
             try {
                 this.launcherService.removeAccount(account);
-                this.statusLabel.setText("Removed " + account.username() + ".");
+                this.statusLabel.setText(Localization.text("accounts.status.removed", account.username()));
                 this.refreshAccounts(this.launcherService.account());
             }
             catch (Exception exception) {
-                this.showError("Could not remove account", exception);
+                this.showError(Localization.text("accounts.error.remove"), exception);
             }
         });
         this.useButton.addActionListener(event -> this.selectAccount());
@@ -286,12 +299,12 @@ public final class AccountSettingsPanel extends JPanel {
         if (activeAccount != null && activeAccount.key().equals(account.key())) return;
         try {
             this.launcherService.selectAccount(account);
-            this.statusLabel.setText("Using " + account.username() + ".");
+            this.statusLabel.setText(Localization.text("accounts.status.using", account.username()));
             this.accountList.repaint();
             this.updateControlState();
         }
         catch (Exception exception) {
-            this.showError("Could not select account", exception);
+            this.showError(Localization.text("accounts.error.select"), exception);
         }
     }
 

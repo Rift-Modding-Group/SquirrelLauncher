@@ -1,5 +1,7 @@
 package com.anightdazingzoroark.squirrellauncher.ui.settings;
 
+import com.anightdazingzoroark.squirrellauncher.ui.Localization;
+
 import javax.swing.BorderFactory;
 import javax.swing.JEditorPane;
 import javax.swing.JLabel;
@@ -18,7 +20,7 @@ public final class AboutSettingsPanel extends JPanel {
         super(new GridBagLayout());
         this.setBorder(BorderFactory.createEmptyBorder(28, 28, 28, 28));
 
-        JLabel heading = new JLabel("About");
+        JLabel heading = new JLabel(Localization.text("about.heading"));
         heading.setFont(heading.getFont().deriveFont(Font.BOLD, 24f));
         GridBagConstraints title = new GridBagConstraints();
         title.gridx = 0;
@@ -28,34 +30,26 @@ public final class AboutSettingsPanel extends JPanel {
         title.insets = new Insets(0, 0, 16, 0);
         this.add(heading, title);
 
-        JEditorPane description = new JEditorPane(
-                "text/html",
-                """
-                <html>
-                    <body style='font-family:sans-serif'>
-                        It's SquirrelLauncher! Made by ANightDazingZoroark.
-                        <br /><br />
-                        <a href='https://github.com/Rift-Modding-Group/SquirrelLauncher'>GitHub repository</a>
-                        <br /><br />
-                        <a href='https://anightdazingzoroark.github.io/'>My website</a>
-                    </body>
-                </html>
-                """
-        );
+        JEditorPane description = new JEditorPane("text/html", Localization.text("about.description"));
         description.setEditable(false);
         description.setOpaque(false);
         description.addHyperlinkListener(event -> {
             if (event.getEventType() != HyperlinkEvent.EventType.ACTIVATED) return;
             try {
                 if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
-                    throw new IllegalStateException("Opening web description is not supported on this computer.");
+                    throw new IllegalStateException(Localization.text("about.error.unsupported"));
                 }
                 Desktop.getDesktop().browse(URI.create(event.getURL().toString()));
             }
             catch (Exception exception) {
                 String message = exception.getMessage();
                 if (message == null || message.isBlank()) message = exception.getClass().getSimpleName();
-                JOptionPane.showMessageDialog(this, message, "Could not open link", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(
+                        this,
+                        message,
+                        Localization.text("about.error.open_link"),
+                        JOptionPane.ERROR_MESSAGE
+                );
             }
         });
 

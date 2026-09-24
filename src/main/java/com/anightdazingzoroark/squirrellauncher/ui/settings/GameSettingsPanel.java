@@ -2,6 +2,7 @@ package com.anightdazingzoroark.squirrellauncher.ui.settings;
 
 import com.anightdazingzoroark.squirrellauncher.launcher.LauncherService;
 import com.anightdazingzoroark.squirrellauncher.launcher.LauncherSettings;
+import com.anightdazingzoroark.squirrellauncher.ui.Localization;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.BorderFactory;
@@ -24,13 +25,13 @@ public final class GameSettingsPanel extends JPanel {
     @NotNull
     private final LauncherService launcherService;
     @NotNull
-    private final JCheckBox fullscreenCheckBox = new JCheckBox("Launch Minecraft in fullscreen");
+    private final JCheckBox fullscreenCheckBox = new JCheckBox(Localization.text("settings.game.fullscreen"));
     @NotNull
     private final JSpinner windowWidthSpinner = new JSpinner(new SpinnerNumberModel(1280, 320, 7680, 1));
     @NotNull
     private final JSpinner windowHeightSpinner = new JSpinner(new SpinnerNumberModel(720, 240, 4320, 1));
     @NotNull
-    private final JButton saveButton = new JButton("Save");
+    private final JButton saveButton = new JButton(Localization.text("settings.button.save"));
 
     public GameSettingsPanel(@NotNull LauncherService launcherService) {
         super(new BorderLayout());
@@ -43,7 +44,7 @@ public final class GameSettingsPanel extends JPanel {
         this.windowHeightSpinner.setValue(settings.windowHeight());
 
         JPanel form = new JPanel(new GridBagLayout());
-        JLabel heading = new JLabel("Game window");
+        JLabel heading = new JLabel(Localization.text("settings.game.heading"));
         heading.setFont(heading.getFont().deriveFont(Font.BOLD, 20f));
         GridBagConstraints title = new GridBagConstraints();
         title.gridx = 0;
@@ -67,7 +68,7 @@ public final class GameSettingsPanel extends JPanel {
         widthLabel.gridy = 2;
         widthLabel.anchor = GridBagConstraints.LINE_START;
         widthLabel.insets = new Insets(5, 0, 5, 14);
-        form.add(new JLabel("Window width:"), widthLabel);
+        form.add(new JLabel(Localization.text("settings.game.width")), widthLabel);
 
         GridBagConstraints width = new GridBagConstraints();
         width.gridx = 1;
@@ -83,7 +84,7 @@ public final class GameSettingsPanel extends JPanel {
         heightLabel.gridy = 3;
         heightLabel.anchor = GridBagConstraints.LINE_START;
         heightLabel.insets = new Insets(5, 0, 5, 14);
-        form.add(new JLabel("Window height:"), heightLabel);
+        form.add(new JLabel(Localization.text("settings.game.height")), heightLabel);
 
         GridBagConstraints height = new GridBagConstraints();
         height.gridx = 1;
@@ -115,7 +116,8 @@ public final class GameSettingsPanel extends JPanel {
                 this.launcherService.updateSettings(new LauncherSettings(
                         this.fullscreenCheckBox.isSelected(),
                         (Integer) this.windowWidthSpinner.getValue(),
-                        (Integer) this.windowHeightSpinner.getValue()
+                        (Integer) this.windowHeightSpinner.getValue(),
+                        this.launcherService.settings().language()
                 ));
                 this.updateControlState();
             }
@@ -125,7 +127,7 @@ public final class GameSettingsPanel extends JPanel {
                 JOptionPane.showMessageDialog(
                         this,
                         message,
-                        "Could not save settings",
+                        Localization.text("settings.error.save"),
                         JOptionPane.ERROR_MESSAGE
                 );
             }

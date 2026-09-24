@@ -5,7 +5,8 @@ A Minecraft 1.12.2 launcher and only 1.12.2. Checklist:
 * [X] Vanilla, Forge, and Cleanroom
 * [X] UI
 * [X] MultiMC/Prism instance storage, import, and export
-* [ ] Settings section
+* [X] Settings section
+* [ ] Localization
 * [ ] Built-in updater
 * [ ] Built-in [Pack Companion](https://github.com/AnasDevO/PackTemplateCompanion)
 * [ ] Mod downloading from Curse and Modrinth

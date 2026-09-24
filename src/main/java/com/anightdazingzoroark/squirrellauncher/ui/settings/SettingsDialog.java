@@ -1,6 +1,7 @@
 package com.anightdazingzoroark.squirrellauncher.ui.settings;
 
 import com.anightdazingzoroark.squirrellauncher.launcher.LauncherService;
+import com.anightdazingzoroark.squirrellauncher.ui.Localization;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -13,17 +14,19 @@ public final class SettingsDialog extends JDialog {
     private final JTabbedPane tabs = new JTabbedPane();
 
     public SettingsDialog(@NotNull JFrame owner, @NotNull LauncherService launcherService, @NotNull Tab selectedTab) {
-        super(owner, "SquirrelLauncher settings", true);
+        super(owner, Localization.text("settings.title"), true);
         this.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         this.setLayout(new BorderLayout(0, 10));
 
-        this.tabs.addTab("Game settings", new GameSettingsPanel(launcherService));
-        this.tabs.addTab("Account settings", new AccountSettingsPanel(launcherService, busy -> {
+        this.tabs.addTab(Localization.text("settings.tab.game"), new GameSettingsPanel(launcherService));
+        this.tabs.addTab(Localization.text("settings.tab.launcher"), new LauncherSettingsPanel(launcherService));
+        this.tabs.addTab(Localization.text("settings.tab.accounts"), new AccountSettingsPanel(launcherService, busy -> {
             this.setDefaultCloseOperation(busy ? WindowConstants.DO_NOTHING_ON_CLOSE : WindowConstants.DISPOSE_ON_CLOSE);
             this.tabs.setEnabledAt(Tab.GAME.ordinal(), !busy);
+            this.tabs.setEnabledAt(Tab.LAUNCHER.ordinal(), !busy);
             this.tabs.setEnabledAt(Tab.ABOUT.ordinal(), !busy);
         }));
-        this.tabs.addTab("About", new AboutSettingsPanel());
+        this.tabs.addTab(Localization.text("settings.tab.about"), new AboutSettingsPanel());
 
         this.tabs.setSelectedIndex(selectedTab.ordinal());
         this.tabs.setBorder(BorderFactory.createEmptyBorder(10, 10, 0, 10));
@@ -40,6 +43,7 @@ public final class SettingsDialog extends JDialog {
 
     public enum Tab {
         GAME,
+        LAUNCHER,
         ACCOUNTS,
         ABOUT;
     }

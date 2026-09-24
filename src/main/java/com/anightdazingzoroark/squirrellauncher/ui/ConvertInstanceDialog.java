@@ -31,11 +31,11 @@ public final class ConvertInstanceDialog extends JDialog {
     @Serial
     private static final long serialVersionUID = 1L;
     @NotNull
-    private final JLabel loaderLabel = new JLabel("Loader version:");
+    private final JLabel loaderLabel = new JLabel(Localization.text("convert.label.loader"));
     @NotNull
     private final JTextField loaderField = new JTextField(22);
     @NotNull
-    private final JButton convertButton = new JButton("Convert");
+    private final JButton convertButton = new JButton(Localization.text("convert.button.convert"));
     @Nullable
     private InstanceType selectedType;
     @Nullable
@@ -44,7 +44,7 @@ public final class ConvertInstanceDialog extends JDialog {
     private String resultLoaderVersion;
 
     public ConvertInstanceDialog(@NotNull JFrame owner, @NotNull MinecraftInstance instance) {
-        super(owner, "Convert " + instance.name(), true);
+        super(owner, Localization.text("convert.title", instance.name()), true);
         this.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         this.setLayout(new BorderLayout(0, 12));
 
@@ -57,7 +57,7 @@ public final class ConvertInstanceDialog extends JDialog {
         message.weightx = 1;
         message.anchor = GridBagConstraints.LINE_START;
         message.insets = new Insets(0, 0, 12, 0);
-        fields.add(new JLabel("Your worlds, settings, and mods will remain in the instance."), message);
+        fields.add(new JLabel(Localization.text("convert.message")), message);
 
         ButtonGroup typeGroup = new ButtonGroup();
         JPanel typePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
@@ -72,11 +72,11 @@ public final class ConvertInstanceDialog extends JDialog {
             }
         }
         if (firstButton != null) firstButton.setSelected(true);
-        this.addRow(fields, 1, new JLabel("New instance type:"), typePanel);
+        this.addRow(fields, 1, new JLabel(Localization.text("convert.label.type")), typePanel);
         this.addRow(fields, 2, this.loaderLabel, this.loaderField);
         this.add(fields, BorderLayout.CENTER);
 
-        JButton cancelButton = new JButton("Cancel");
+        JButton cancelButton = new JButton(Localization.text("convert.button.cancel"));
         cancelButton.addActionListener(event -> this.dispose());
         this.convertButton.addActionListener(event -> {
             if (this.selectedType == null) return;
@@ -120,7 +120,7 @@ public final class ConvertInstanceDialog extends JDialog {
         button.setHorizontalTextPosition(JToggleButton.CENTER);
         button.setVerticalTextPosition(JToggleButton.BOTTOM);
         button.setIconTextGap(8);
-        button.setToolTipText("Convert to " + label);
+        button.setToolTipText(Localization.text("convert.tooltip", label));
         button.addActionListener(event -> {
             this.selectedType = type;
             this.updateLoaderField();
