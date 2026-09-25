@@ -11,7 +11,9 @@ public record MinecraftInstance(
         @NotNull String name,
         @NotNull InstanceType type,
         @Nullable String loaderVersion,
-        @Nullable String iconKey
+        @Nullable String iconKey,
+        long totalTimePlayedSeconds,
+        long createdTimeMillis
 ) {
     @NotNull
     public Path directory() {

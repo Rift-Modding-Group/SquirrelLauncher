@@ -9,6 +9,7 @@ public final class MinecraftPaths {
     public static final Path ROOT = Path.of(System.getProperty("user.home"), ".squirrellauncher");
     public static final Path ACCOUNTS = ROOT.resolve("accounts.json");
     public static final Path SETTINGS = ROOT.resolve("settings.json");
+    public static final Path INSTANCE_ORDER = ROOT.resolve("instance-order.json");
     public static final Path ACCOUNT_ICONS = ROOT.resolve("cache").resolve("account-icons");
     public static final Path INSTANCE_ICONS = ROOT.resolve("icons");
     public static final Path VERSIONS = ROOT.resolve("versions");

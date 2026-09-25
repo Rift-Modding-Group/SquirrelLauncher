@@ -15,6 +15,8 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
+import javax.swing.DropMode;
+import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
@@ -32,31 +34,45 @@ import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import javax.swing.JComponent;
+import javax.swing.ListCellRenderer;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
+import javax.swing.TransferHandler;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.AbstractTableModel;
 import java.awt.BorderLayout;
+import java.awt.BasicStroke;
 import java.awt.CardLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.Transferable;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -67,14 +83,33 @@ import java.util.function.Consumer;
 
 public final class LauncherFrame extends JFrame {
     private static final int MAX_ACTIVITY_CHARACTERS = 250_000;
+    private static final int INSTANCE_GEAR_WIDTH = 36;
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss");
     private static final String EMPTY_INSTANCE_CARD = "empty";
     private static final String INSTANCE_DETAILS_CARD = "details";
+    private static final String INSTANCE_HEADER_CARD = "header";
+    private static final String INSTANCE_SEARCH_CARD = "search";
 
     private final DefaultListModel<MinecraftInstance> instanceModel = new DefaultListModel<>();
     private final JList<MinecraftInstance> instanceList = new JList<>(this.instanceModel);
+    @NotNull
+    private final List<MinecraftInstance> instances = new ArrayList<>();
     private final JButton addInstanceButton;
     private final JButton refreshInstancesButton;
+    @NotNull
+    private final JButton searchInstancesButton;
+    @NotNull
+    private final JButton sortInstancesButton;
+    @NotNull
+    private final JButton closeInstanceSearchButton;
+    @NotNull
+    private final JTextField instanceSearchField = new JTextField();
+    @NotNull
+    private final CardLayout instanceHeaderLayout = new CardLayout();
+    @NotNull
+    private final JPanel instanceHeaderCards = new JPanel(this.instanceHeaderLayout);
+    @NotNull
+    private final JPopupMenu instanceSortMenu = new JPopupMenu();
     private final JPopupMenu instanceActionsMenu = new JPopupMenu();
     private final JMenuItem renameInstanceItem;
     private final JMenuItem duplicateInstanceItem;
@@ -93,6 +128,10 @@ public final class LauncherFrame extends JFrame {
     private final JLabel instanceNameLabel;
     private final JLabel instanceTypeLabel;
     private final JLabel loaderVersionLabel;
+    @NotNull
+    private final JLabel instancePlaytimeLabel;
+    @NotNull
+    private final JLabel emptyInstanceMessage;
     private final ModTableModel modTableModel = new ModTableModel();
     private final JTable modTable;
     private final JButton installModButton;
@@ -133,6 +172,17 @@ public final class LauncherFrame extends JFrame {
         Localization.configure(this.launcherService.settings().language());
         this.addInstanceButton = new JButton(Localization.text("main.button.add_instance"));
         this.refreshInstancesButton = new JButton(Localization.text("main.button.refresh"));
+        this.searchInstancesButton = new JButton(SidebarIcon.SEARCH);
+        this.sortInstancesButton = new JButton(SidebarIcon.SORT);
+        this.closeInstanceSearchButton = new JButton(SidebarIcon.CLOSE);
+        this.searchInstancesButton.setToolTipText(Localization.text("main.button.search_instances"));
+        this.sortInstancesButton.setToolTipText(Localization.text("main.button.sort_instances"));
+        this.closeInstanceSearchButton.setToolTipText(Localization.text("main.button.close_search"));
+        this.searchInstancesButton.getAccessibleContext().setAccessibleName(Localization.text("main.button.search_instances"));
+        this.sortInstancesButton.getAccessibleContext().setAccessibleName(Localization.text("main.button.sort_instances"));
+        this.closeInstanceSearchButton.getAccessibleContext().setAccessibleName(Localization.text("main.button.close_search"));
+        this.instanceSearchField.setToolTipText(Localization.text("main.prompt.search_instances"));
+        this.instanceSearchField.getAccessibleContext().setAccessibleName(Localization.text("main.dialog.search_instances"));
         this.renameInstanceItem = new JMenuItem(Localization.text("main.menu.rename"));
         this.duplicateInstanceItem = new JMenuItem(Localization.text("main.menu.duplicate"));
         this.convertInstanceItem = new JMenuItem(Localization.text("main.menu.convert"));
@@ -147,6 +197,8 @@ public final class LauncherFrame extends JFrame {
         this.instanceNameLabel = new JLabel(Localization.text("main.instance.select"));
         this.instanceTypeLabel = new JLabel(Localization.text("main.instance.type", "—"));
         this.loaderVersionLabel = new JLabel(Localization.text("main.instance.loader", "—"));
+        this.instancePlaytimeLabel = new JLabel(LauncherFrame.playtimeText(0));
+        this.emptyInstanceMessage = new JLabel(Localization.text("main.instances.empty"));
         this.modTable = new JTable(this.modTableModel);
         this.installModButton = new JButton(Localization.text("main.button.install_mod"));
         this.toggleModButton = new JButton(Localization.text("main.button.enable"));
@@ -232,9 +284,8 @@ public final class LauncherFrame extends JFrame {
 
     private JPanel createInstanceArea() {
         JPanel emptyPanel = new JPanel(new GridBagLayout());
-        JLabel emptyMessage = new JLabel(Localization.text("main.instances.empty"));
-        emptyMessage.setFont(emptyMessage.getFont().deriveFont(Font.BOLD, 22f));
-        emptyPanel.add(emptyMessage);
+        this.emptyInstanceMessage.setFont(this.emptyInstanceMessage.getFont().deriveFont(Font.BOLD, 22f));
+        emptyPanel.add(this.emptyInstanceMessage);
 
         this.instanceContentCards.add(emptyPanel, EMPTY_INSTANCE_CARD);
         this.instanceContentCards.add(createInstanceContent(), INSTANCE_DETAILS_CARD);
@@ -251,10 +302,89 @@ public final class LauncherFrame extends JFrame {
 
         JLabel heading = new JLabel(Localization.text("main.instances.heading"));
         heading.setFont(heading.getFont().deriveFont(Font.BOLD, 15f));
-        panel.add(heading, BorderLayout.NORTH);
+        JPanel headingBar = new JPanel(new BorderLayout(6, 0));
+        headingBar.add(heading, BorderLayout.WEST);
+        JPanel headingActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        headingActions.add(this.searchInstancesButton);
+        headingActions.add(this.sortInstancesButton);
+        headingBar.add(headingActions, BorderLayout.EAST);
+
+        JPanel searchBar = new JPanel(new BorderLayout(4, 0));
+        searchBar.add(this.instanceSearchField, BorderLayout.CENTER);
+        searchBar.add(this.closeInstanceSearchButton, BorderLayout.EAST);
+        this.instanceHeaderCards.add(headingBar, INSTANCE_HEADER_CARD);
+        this.instanceHeaderCards.add(searchBar, INSTANCE_SEARCH_CARD);
+        this.instanceHeaderLayout.show(this.instanceHeaderCards, INSTANCE_HEADER_CARD);
+        panel.add(this.instanceHeaderCards, BorderLayout.NORTH);
 
         this.instanceList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         this.instanceList.setCellRenderer(new InstanceCellRenderer());
+        this.instanceList.setDragEnabled(true);
+        this.instanceList.setDropMode(DropMode.INSERT);
+        this.instanceList.setTransferHandler(new TransferHandler() {
+            @Nullable
+            private String draggedInstanceId;
+
+            @Override
+            @Nullable
+            protected Transferable createTransferable(JComponent component) {
+                MinecraftInstance instance = LauncherFrame.this.selectedInstance();
+                this.draggedInstanceId = instance == null ? null : instance.id();
+                return this.draggedInstanceId == null ? null : new StringSelection(this.draggedInstanceId);
+            }
+
+            @Override
+            public int getSourceActions(JComponent component) {
+                return MOVE;
+            }
+
+            @Override
+            public boolean canImport(TransferSupport support) {
+                return support.isDrop()
+                        && !LauncherFrame.this.busy
+                        && LauncherFrame.this.instanceSearchField.getText().isBlank()
+                        && support.isDataFlavorSupported(java.awt.datatransfer.DataFlavor.stringFlavor);
+            }
+
+            @Override
+            public boolean importData(TransferSupport support) {
+                if (!this.canImport(support) || this.draggedInstanceId == null) return false;
+                int sourceIndex = -1;
+                for (int index = 0; index < LauncherFrame.this.instances.size(); index++) {
+                    if (this.draggedInstanceId.equals(LauncherFrame.this.instances.get(index).id())) {
+                        sourceIndex = index;
+                        break;
+                    }
+                }
+                if (sourceIndex < 0) return false;
+
+                JList.DropLocation drop = (JList.DropLocation) support.getDropLocation();
+                int destinationIndex = drop.getIndex();
+                if (destinationIndex > sourceIndex) destinationIndex--;
+                if (destinationIndex == sourceIndex) return false;
+
+                List<MinecraftInstance> reordered = new ArrayList<>(LauncherFrame.this.instances);
+                MinecraftInstance moved = reordered.remove(sourceIndex);
+                destinationIndex = Math.max(0, Math.min(destinationIndex, reordered.size()));
+                reordered.add(destinationIndex, moved);
+                try {
+                    LauncherFrame.this.launcherService.reorderInstances(reordered);
+                    LauncherFrame.this.instances.clear();
+                    LauncherFrame.this.instances.addAll(reordered);
+                    LauncherFrame.this.rebuildInstanceList(moved.id());
+                    LauncherFrame.this.setStatus(Localization.text("main.status.instances_reordered"));
+                    return true;
+                }
+                catch (Exception exception) {
+                    LauncherFrame.this.showError(
+                            Localization.text("main.error.reorder_instances"),
+                            exception,
+                            null
+                    );
+                    return false;
+                }
+            }
+        });
         panel.add(new JScrollPane(this.instanceList), BorderLayout.CENTER);
 
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
@@ -284,7 +414,7 @@ public final class LauncherFrame extends JFrame {
         GridBagConstraints name = new GridBagConstraints();
         name.gridx = 0;
         name.gridy = 0;
-        name.gridwidth = 2;
+        name.gridwidth = 3;
         name.weightx = 1;
         name.anchor = GridBagConstraints.LINE_START;
         name.insets = new Insets(0, 0, 5, 0);
@@ -303,6 +433,12 @@ public final class LauncherFrame extends JFrame {
         loader.weightx = 1;
         loader.anchor = GridBagConstraints.LINE_START;
         panel.add(this.loaderVersionLabel, loader);
+
+        GridBagConstraints playtime = new GridBagConstraints();
+        playtime.gridx = 2;
+        playtime.gridy = 1;
+        playtime.anchor = GridBagConstraints.LINE_END;
+        panel.add(this.instancePlaytimeLabel, playtime);
         return panel;
     }
 
@@ -375,6 +511,76 @@ public final class LauncherFrame extends JFrame {
             }
         });
 
+        this.searchInstancesButton.addActionListener(event -> {
+            this.instanceHeaderLayout.show(this.instanceHeaderCards, INSTANCE_SEARCH_CARD);
+            this.instanceSearchField.requestFocusInWindow();
+            this.instanceSearchField.selectAll();
+        });
+        this.closeInstanceSearchButton.addActionListener(event -> {
+            this.instanceSearchField.setText("");
+            this.instanceHeaderLayout.show(this.instanceHeaderCards, INSTANCE_HEADER_CARD);
+        });
+        this.instanceSearchField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(@NotNull DocumentEvent event) {
+                LauncherFrame.this.updateInstanceSearch();
+            }
+
+            @Override
+            public void removeUpdate(@NotNull DocumentEvent event) {
+                LauncherFrame.this.updateInstanceSearch();
+            }
+
+            @Override
+            public void changedUpdate(@NotNull DocumentEvent event) {
+                LauncherFrame.this.updateInstanceSearch();
+            }
+        });
+        for (InstanceSortMode mode : InstanceSortMode.values()) {
+            JMenuItem sortItem = new JMenuItem(Localization.text(mode.localizationKey));
+            sortItem.addActionListener(event -> {
+                String selectedId = this.selectedInstanceId();
+                List<MinecraftInstance> sorted = new ArrayList<>(this.instances);
+                Comparator<MinecraftInstance> nameAscending = Comparator
+                        .comparing(MinecraftInstance::name, String.CASE_INSENSITIVE_ORDER)
+                        .thenComparing(MinecraftInstance::id);
+                Comparator<MinecraftInstance> comparator = switch (mode) {
+                    case NAME_ASCENDING -> nameAscending;
+                    case NAME_DESCENDING -> nameAscending.reversed();
+                    case PLAYTIME -> Comparator.comparingLong(MinecraftInstance::totalTimePlayedSeconds)
+                            .reversed()
+                            .thenComparing(nameAscending);
+                    case OLDEST -> Comparator.comparingLong(MinecraftInstance::createdTimeMillis)
+                            .thenComparing(nameAscending);
+                    case NEWEST -> Comparator.comparingLong(MinecraftInstance::createdTimeMillis)
+                            .reversed()
+                            .thenComparing(nameAscending);
+                };
+                sorted.sort(comparator);
+                List<MinecraftInstance> savedOrder = List.copyOf(sorted);
+                this.runTask(
+                        null,
+                        Localization.text("main.status.sorting_instances"),
+                        () -> {
+                            this.launcherService.reorderInstances(savedOrder);
+                            return savedOrder;
+                        },
+                        reordered -> {
+                            this.instances.clear();
+                            this.instances.addAll(reordered);
+                            this.rebuildInstanceList(selectedId);
+                            this.setStatus(Localization.text("main.status.instances_reordered"));
+                        }
+                );
+            });
+            this.instanceSortMenu.add(sortItem);
+        }
+        this.sortInstancesButton.addActionListener(event -> this.instanceSortMenu.show(
+                this.sortInstancesButton,
+                0,
+                this.sortInstancesButton.getHeight()
+        ));
+
         this.instanceList.addListSelectionListener(event -> {
             if (!event.getValueIsAdjusting()) showSelectedInstance();
         });
@@ -392,12 +598,13 @@ public final class LauncherFrame extends JFrame {
         this.instanceList.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(@NotNull MouseEvent event) {
-                boolean actionClick = SwingUtilities.isRightMouseButton(event);
-                if (!actionClick || LauncherFrame.this.busy) return;
-
                 int index = LauncherFrame.this.instanceList.locationToIndex(event.getPoint());
                 Rectangle bounds = index < 0 ? null : LauncherFrame.this.instanceList.getCellBounds(index, index);
                 if (bounds == null || !bounds.contains(event.getPoint())) return;
+                boolean gearClick = SwingUtilities.isLeftMouseButton(event)
+                        && event.getX() >= bounds.x + bounds.width - INSTANCE_GEAR_WIDTH;
+                boolean actionClick = SwingUtilities.isRightMouseButton(event) || gearClick;
+                if (!actionClick || LauncherFrame.this.busy) return;
 
                 LauncherFrame.this.instanceList.setSelectedIndex(index);
                 LauncherFrame.this.updateControlState();
@@ -442,6 +649,7 @@ public final class LauncherFrame extends JFrame {
                                 request.importsInstance() ? "main.activity.imported" : "main.activity.created",
                                 instance.name()
                         ));
+                        this.instanceSearchField.setText("");
                         this.refreshInstances(instance.id());
                     }
             );
@@ -491,6 +699,7 @@ public final class LauncherFrame extends JFrame {
                                 instance.name(),
                                 duplicate.name()
                         ));
+                        this.instanceSearchField.setText("");
                         this.refreshInstances(duplicate.id());
                     }
             );
@@ -756,18 +965,49 @@ public final class LauncherFrame extends JFrame {
                     for (MinecraftInstance instance : instances) instanceIds.add(instance.id());
                     this.instanceActivityLogs.keySet().removeIf(id -> !instanceIds.contains(id));
 
-                    this.instanceModel.clear();
-                    for (MinecraftInstance instance : instances) this.instanceModel.addElement(instance);
-
-                    MinecraftInstance selection = findInstance(instances, selectedId);
-                    if (selection == null && !instances.isEmpty()) selection = instances.getFirst();
-                    this.instanceList.setSelectedValue(selection, true);
-                    if (selection == null) showSelectedInstance();
+                    this.instances.clear();
+                    this.instances.addAll(instances);
+                    this.rebuildInstanceList(selectedId);
                     setStatus(Localization.text(
                             instances.isEmpty() ? "main.status.add_instance" : "main.status.ready"
                     ));
                 }
         );
+    }
+
+    private void updateInstanceSearch() {
+        String selectedId = this.selectedInstanceId();
+        this.rebuildInstanceList(selectedId);
+    }
+
+    private void rebuildInstanceList(@Nullable String selectedId) {
+        this.instanceModel.clear();
+        String query = this.instanceSearchField.getText().trim().toLowerCase(java.util.Locale.ROOT);
+        for (MinecraftInstance instance : this.instances) {
+            if (query.isEmpty()
+                    || instance.name().toLowerCase(java.util.Locale.ROOT).contains(query)
+                    || instance.id().toLowerCase(java.util.Locale.ROOT).contains(query)) {
+                this.instanceModel.addElement(instance);
+            }
+        }
+
+        MinecraftInstance selection = null;
+        if (selectedId != null) {
+            for (int index = 0; index < this.instanceModel.size(); index++) {
+                MinecraftInstance candidate = this.instanceModel.get(index);
+                if (selectedId.equals(candidate.id())) {
+                    selection = candidate;
+                    break;
+                }
+            }
+        }
+        if (selection == null && !this.instanceModel.isEmpty()) selection = this.instanceModel.getElementAt(0);
+        this.emptyInstanceMessage.setText(Localization.text(
+                this.instances.isEmpty() ? "main.instances.empty" : "main.instances.no_matches"
+        ));
+        this.instanceList.setSelectedValue(selection, true);
+        if (selection == null) this.showSelectedInstance();
+        this.updateControlState();
     }
 
     private void showSelectedInstance() {
@@ -794,6 +1034,7 @@ public final class LauncherFrame extends JFrame {
         this.loaderVersionLabel.setText(instance.loaderVersion() == null
                 ? "Minecraft " + SquirrelLauncher.VERSION
                 : Localization.text("main.instance.loader", instance.loaderVersion()));
+        this.instancePlaytimeLabel.setText(LauncherFrame.playtimeText(instance.totalTimePlayedSeconds()));
 
         if (!instance.type().hasMods) {
             this.setModsTabVisible(false);
@@ -832,39 +1073,77 @@ public final class LauncherFrame extends JFrame {
     }
 
     private void monitorProcess(MinecraftInstance instance, Process process) {
+        long launchTimeMillis = System.currentTimeMillis();
+        long launchTimeNanos = System.nanoTime();
         this.runningProcess = process;
         this.runningActivityInstanceId = instance.id();
         this.runningActivityPrefix = "[" + instance.name() + "] ";
         this.setStatus(Localization.text("main.status.minecraft_running"));
         this.updateControlState();
 
-        new SwingWorker<Integer, Void>() {
+        new SwingWorker<GameExit, Void>() {
             @Override
-            protected Integer doInBackground() throws Exception {
-                return process.waitFor();
+            protected GameExit doInBackground() throws Exception {
+                int exitCode = process.waitFor();
+                long elapsedNanos = System.nanoTime() - launchTimeNanos;
+                long elapsedSeconds = elapsedNanos <= 0 ? 0 : elapsedNanos / 1_000_000_000L;
+                try {
+                    MinecraftInstance updated = LauncherFrame.this.launcherService.recordPlaytime(
+                            instance,
+                            elapsedSeconds,
+                            launchTimeMillis
+                    );
+                    return new GameExit(exitCode, updated, null);
+                }
+                catch (Exception exception) {
+                    return new GameExit(exitCode, instance, exception);
+                }
             }
 
             @Override
             protected void done() {
-                runningProcess = null;
+                LauncherFrame.this.runningProcess = null;
                 try {
-                    int exitCode = get();
-                    setStatus(Localization.text("main.status.minecraft_exited", exitCode));
-                    appendActivity(
+                    GameExit result = this.get();
+                    LauncherFrame.this.setStatus(Localization.text("main.status.minecraft_exited", result.exitCode()));
+                    LauncherFrame.this.appendActivity(
                             instance.id(),
-                            Localization.text("main.activity.minecraft_exited", instance.name(), exitCode)
+                            Localization.text("main.activity.minecraft_exited", instance.name(), result.exitCode())
                     );
+                    String selectedId = LauncherFrame.this.selectedInstanceId();
+                    for (int index = 0; index < LauncherFrame.this.instances.size(); index++) {
+                        if (instance.id().equals(LauncherFrame.this.instances.get(index).id())) {
+                            LauncherFrame.this.instances.set(index, result.instance());
+                            break;
+                        }
+                    }
+                    LauncherFrame.this.rebuildInstanceList(selectedId);
+                    if (result.playtimeError() != null) {
+                        LauncherFrame.this.showError(
+                                Localization.text("main.error.save_playtime"),
+                                result.playtimeError(),
+                                instance.id()
+                        );
+                    }
                 }
                 catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
-                    showError(Localization.text("main.error.waiting_interrupted"), exception, instance.id());
+                    LauncherFrame.this.showError(
+                            Localization.text("main.error.waiting_interrupted"),
+                            exception,
+                            instance.id()
+                    );
                 }
                 catch (ExecutionException exception) {
-                    showError(Localization.text("main.error.monitor_minecraft"), exception.getCause(), instance.id());
+                    LauncherFrame.this.showError(
+                            Localization.text("main.error.monitor_minecraft"),
+                            exception.getCause(),
+                            instance.id()
+                    );
                 }
-                runningActivityPrefix = null;
-                runningActivityInstanceId = null;
-                updateControlState();
+                LauncherFrame.this.runningActivityPrefix = null;
+                LauncherFrame.this.runningActivityInstanceId = null;
+                LauncherFrame.this.updateControlState();
             }
         }.execute();
     }
@@ -930,6 +1209,10 @@ public final class LauncherFrame extends JFrame {
         this.manageAccountsButton.setEnabled(available);
         this.settingsButton.setEnabled(available);
         this.addInstanceButton.setEnabled(available);
+        this.searchInstancesButton.setEnabled(available && !this.instances.isEmpty());
+        this.sortInstancesButton.setEnabled(available && this.instances.size() > 1);
+        this.instanceSearchField.setEnabled(available);
+        this.closeInstanceSearchButton.setEnabled(available);
         this.renameInstanceItem.setEnabled(available && instance != null && this.runningProcess == null);
         this.duplicateInstanceItem.setEnabled(available && instance != null && this.runningProcess == null);
         this.convertInstanceItem.setEnabled(available && instance != null && this.runningProcess == null);
@@ -1082,15 +1365,6 @@ public final class LauncherFrame extends JFrame {
         return row < 0 ? null : this.modTableModel.modAt(row);
     }
 
-    @Nullable
-    private static MinecraftInstance findInstance(@NotNull List<MinecraftInstance> instances, @Nullable String id) {
-        if (id == null) return null;
-        for (MinecraftInstance instance : instances) {
-            if (id.equals(instance.id())) return instance;
-        }
-        return null;
-    }
-
     private static Throwable rootCause(Throwable throwable) {
         Throwable result = throwable;
         while (result.getCause() != null && result.getCause() != result) result = result.getCause();
@@ -1110,29 +1384,154 @@ public final class LauncherFrame extends JFrame {
         };
     }
 
+    @NotNull
+    private static String playtimeText(long totalTimePlayedSeconds) {
+        long safeTotalTimePlayedSeconds = Math.max(0, totalTimePlayedSeconds);
+        if (safeTotalTimePlayedSeconds < 3_600) {
+            long minutes = safeTotalTimePlayedSeconds / 60;
+            return Localization.text(
+                    minutes == 1 ? "main.instance.playtime.minute" : "main.instance.playtime.minutes",
+                    minutes
+            );
+        }
+
+        long tenthsOfAnHour = safeTotalTimePlayedSeconds / 360;
+        if (safeTotalTimePlayedSeconds % 360 >= 180) tenthsOfAnHour++;
+        return Localization.text(
+                "main.instance.playtime",
+                (tenthsOfAnHour / 10) + "." + (tenthsOfAnHour % 10)
+        );
+    }
+
     @FunctionalInterface
     private interface BackgroundTask<T> {
         T run() throws Exception;
     }
 
-    private static final class InstanceCellRenderer extends DefaultListCellRenderer {
+    private record GameExit(
+            int exitCode,
+            @NotNull MinecraftInstance instance,
+            @Nullable Throwable playtimeError
+    ) {}
+
+    private enum InstanceSortMode {
+        NAME_ASCENDING("main.sort.name_ascending"),
+        NAME_DESCENDING("main.sort.name_descending"),
+        PLAYTIME("main.sort.playtime"),
+        OLDEST("main.sort.oldest"),
+        NEWEST("main.sort.newest");
+
+        @NotNull
+        private final String localizationKey;
+
+        InstanceSortMode(@NotNull String localizationKey) {
+            this.localizationKey = localizationKey;
+        }
+    }
+
+    private enum SidebarIcon implements Icon {
+        SEARCH,
+        SORT,
+        CLOSE;
+
+        private static final int ICON_SIZE = 16;
+
         @Override
-        public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
-            JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-            if (value instanceof MinecraftInstance instance) {
-                label.setText(
-                        "<html><b>" + InstanceCellRenderer.escapeHtml(instance.name()) + "</b><br><small>"
-                                + LauncherFrame.displayName(instance.type()) + "</small></html>"
-                );
-                label.setIcon(InstanceIconProvider.INSTANCE.iconFor(instance));
-                label.setIconTextGap(10);
-                label.setBorder(BorderFactory.createEmptyBorder(6, 7, 6, 7));
+        public void paintIcon(
+                @Nullable Component component,
+                @NotNull Graphics graphics,
+                int x,
+                int y
+        ) {
+            if (!(graphics instanceof Graphics2D)) return;
+            Graphics2D drawing = (Graphics2D) graphics.create();
+            try {
+                Color color = component == null
+                        ? Color.DARK_GRAY
+                        : component.isEnabled() ? component.getForeground() : Color.GRAY;
+                drawing.setColor(color);
+                drawing.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                drawing.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                drawing.translate(x, y);
+                switch (this) {
+                    case SEARCH -> {
+                        drawing.drawOval(1, 1, 10, 10);
+                        drawing.drawLine(10, 10, 15, 15);
+                    }
+                    case SORT -> {
+                        drawing.drawLine(1, 3, 9, 3);
+                        drawing.drawLine(1, 7, 7, 7);
+                        drawing.drawLine(1, 11, 5, 11);
+                        drawing.drawLine(13, 1, 13, 14);
+                        drawing.drawLine(10, 11, 13, 14);
+                        drawing.drawLine(13, 14, 15, 11);
+                    }
+                    case CLOSE -> {
+                        drawing.drawLine(3, 3, 13, 13);
+                        drawing.drawLine(13, 3, 3, 13);
+                    }
+                }
             }
-            return label;
+            finally {
+                drawing.dispose();
+            }
         }
 
-        private static String escapeHtml(String value) {
-            return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+        @Override
+        public int getIconWidth() {
+            return ICON_SIZE;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return ICON_SIZE;
+        }
+    }
+
+    private static final class InstanceCellRenderer extends JPanel implements ListCellRenderer<MinecraftInstance> {
+        @NotNull
+        private final JLabel iconLabel = new JLabel();
+        @NotNull
+        private final JLabel textLabel = new JLabel();
+        @NotNull
+        private final JLabel gearLabel = new JLabel("⚙", JLabel.CENTER);
+
+        private InstanceCellRenderer() {
+            super(new BorderLayout(10, 0));
+            this.setOpaque(true);
+            this.iconLabel.setOpaque(false);
+            this.textLabel.setOpaque(false);
+            this.gearLabel.setOpaque(false);
+            this.gearLabel.setFont(this.gearLabel.getFont().deriveFont(18f));
+            this.gearLabel.setPreferredSize(new Dimension(INSTANCE_GEAR_WIDTH, 32));
+            this.gearLabel.setToolTipText(Localization.text("main.tooltip.instance_options"));
+            this.add(this.iconLabel, BorderLayout.WEST);
+            this.add(this.textLabel, BorderLayout.CENTER);
+            this.add(this.gearLabel, BorderLayout.EAST);
+        }
+
+        @Override
+        @NotNull
+        public Component getListCellRendererComponent(
+                @NotNull JList<? extends MinecraftInstance> list,
+                @NotNull MinecraftInstance instance,
+                int index,
+                boolean selected,
+                boolean focused
+        ) {
+            String name = instance.name().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+            this.textLabel.setText(
+                    "<html><b>" + name + "</b><br><small>"
+                            + LauncherFrame.displayName(instance.type()) + " • "
+                            + LauncherFrame.playtimeText(instance.totalTimePlayedSeconds())
+                            + "</small></html>"
+            );
+            this.iconLabel.setIcon(InstanceIconProvider.INSTANCE.iconFor(instance));
+            this.setBackground(selected ? list.getSelectionBackground() : list.getBackground());
+            this.textLabel.setForeground(selected ? list.getSelectionForeground() : list.getForeground());
+            this.gearLabel.setForeground(selected ? list.getSelectionForeground() : list.getForeground());
+            this.setBorder(BorderFactory.createEmptyBorder(6, 7, 6, 0));
+            return this;
         }
     }
 

@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -51,7 +52,15 @@ public final class InstanceManager {
         Path instanceDirectory = MinecraftPaths.INSTANCES.resolve(id);
         if (Files.exists(instanceDirectory)) throw new IOException("Instance already exists: " + id);
 
-        MinecraftInstance instance = new MinecraftInstance(id, name, type, loaderVersion, null);
+        MinecraftInstance instance = new MinecraftInstance(
+                id,
+                name,
+                type,
+                loaderVersion,
+                null,
+                0,
+                System.currentTimeMillis()
+        );
         Files.createDirectories(instance.gameDirectory());
         Files.createDirectories(instance.nativesDirectory());
         InstanceManager.save(instance);
@@ -63,7 +72,11 @@ public final class InstanceManager {
         String iconEntry = instance.iconKey() == null ? "" : "iconKey="
                 + InstanceManager.escapeCfgValue(instance.iconKey()) + "\n";
         Files.writeString(instance.configFile(), "InstanceType=OneSix\n" + iconEntry
-                + "name=" + InstanceManager.escapeCfgValue(instance.name()) + "\n", StandardCharsets.UTF_8);
+                + "SquirrelLauncherCreatedTime=" + instance.createdTimeMillis() + "\n"
+                + "lastLaunchTime=0\n"
+                + "lastTimePlayed=0\n"
+                + "name=" + InstanceManager.escapeCfgValue(instance.name()) + "\n"
+                + "totalTimePlayed=" + instance.totalTimePlayedSeconds() + "\n", StandardCharsets.UTF_8);
 
         InstanceManager.saveComponents(instance);
     }
@@ -82,7 +95,9 @@ public final class InstanceManager {
                 instance.name(),
                 type,
                 type.hasMods ? loaderVersion.trim() : null,
-                instance.iconKey()
+                instance.iconKey(),
+                instance.totalTimePlayedSeconds(),
+                instance.createdTimeMillis()
         );
         Path loaderPatch = instance.directory().resolve("patches").resolve(FORGE_COMPONENT + ".json");
         Path backupPatch = null;
@@ -185,6 +200,15 @@ public final class InstanceManager {
             iconKey = iconKey.trim();
             if (iconKey.isEmpty() || iconKey.equals("default")) iconKey = null;
         }
+        long totalTimePlayed = InstanceManager.nonNegativeLong(config, "totalTimePlayed", 0);
+        BasicFileAttributes directoryAttributes = Files.readAttributes(directory, BasicFileAttributes.class);
+        long fallbackCreatedTime = directoryAttributes.creationTime().toMillis();
+        if (fallbackCreatedTime <= 0) fallbackCreatedTime = directoryAttributes.lastModifiedTime().toMillis();
+        long createdTime = InstanceManager.nonNegativeLong(
+                config,
+                "SquirrelLauncherCreatedTime",
+                fallbackCreatedTime
+        );
 
         JsonObject pack = InstallUtils.readJson(componentFile);
         if (!pack.has("formatVersion") || pack.get("formatVersion").getAsInt() != MMC_FORMAT_VERSION) {
@@ -239,7 +263,7 @@ public final class InstanceManager {
         if (type == InstanceType.FORGE && loaderVersion.startsWith(SquirrelLauncher.VERSION + "-")) {
             loaderVersion = loaderVersion.substring((SquirrelLauncher.VERSION + "-").length());
         }
-        return new MinecraftInstance(id, name, type, loaderVersion, iconKey);
+        return new MinecraftInstance(id, name, type, loaderVersion, iconKey, totalTimePlayed, createdTime);
     }
 
     public static void setName(@NotNull Path directory, @NotNull String name) throws IOException {
@@ -250,7 +274,7 @@ public final class InstanceManager {
         InstanceManager.setConfigValue(directory, "iconKey", iconKey);
     }
 
-    private static void setConfigValue(
+    public static void setConfigValue(
             @NotNull Path directory,
             @NotNull String key,
             @Nullable String value
@@ -310,5 +334,21 @@ public final class InstanceManager {
     @NotNull
     private static String escapeCfgValue(@NotNull String value) {
         return value.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r");
+    }
+
+    private static long nonNegativeLong(
+            @NotNull Properties config,
+            @NotNull String key,
+            long fallback
+    ) {
+        String value = config.getProperty(key);
+        if (value == null) return fallback;
+        try {
+            long parsed = Long.parseLong(value.trim());
+            return parsed < 0 ? fallback : parsed;
+        }
+        catch (NumberFormatException exception) {
+            return fallback;
+        }
     }
 }

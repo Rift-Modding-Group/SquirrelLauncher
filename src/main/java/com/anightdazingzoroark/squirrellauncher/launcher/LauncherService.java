@@ -19,6 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
@@ -34,6 +35,8 @@ public final class LauncherService implements AutoCloseable {
     private final AccountManager accountManager = new AccountManager();
     @NotNull
     private final LauncherSettingsManager settingsManager = new LauncherSettingsManager();
+    @NotNull
+    private final InstanceOrderManager instanceOrderManager = new InstanceOrderManager();
 
     public LauncherService(@NotNull Consumer<String> outputListener) {
         this.outputBridge = new LauncherOutputBridge(outputListener);
@@ -81,7 +84,7 @@ public final class LauncherService implements AutoCloseable {
     //---instance stuff---
     @NotNull
     public List<MinecraftInstance> listInstances() throws Exception {
-        return InstanceManager.list();
+        return this.instanceOrderManager.apply(InstanceManager.list());
     }
 
     @NotNull
@@ -104,19 +107,30 @@ public final class LauncherService implements AutoCloseable {
             }
             instance = InstanceManager.create(instanceId, name, request.type(), loaderVersion);
         }
-        if (request.icon() == null) return instance;
-        try {
-            return InstanceIconManager.assign(instance, request.icon());
+        if (request.importsInstance()) {
+            InstanceManager.setConfigValue(
+                    instance.directory(),
+                    "SquirrelLauncherCreatedTime",
+                    Long.toString(System.currentTimeMillis())
+            );
+            instance = InstanceManager.load(instance.id());
         }
-        catch (Exception exception) {
+        if (request.icon() != null) {
             try {
-                this.deleteDirectory(instance.directory());
+                instance = InstanceIconManager.assign(instance, request.icon());
             }
-            catch (Exception rollbackException) {
-                exception.addSuppressed(rollbackException);
+            catch (Exception exception) {
+                try {
+                    this.deleteDirectory(instance.directory());
+                }
+                catch (Exception rollbackException) {
+                    exception.addSuppressed(rollbackException);
+                }
+                throw exception;
             }
-            throw exception;
         }
+        this.instanceOrderManager.moveToTop(instance.id());
+        return instance;
     }
 
     @NotNull
@@ -148,6 +162,10 @@ public final class LauncherService implements AutoCloseable {
                 }
             }
             InstanceManager.setName(staging, name);
+            InstanceManager.setConfigValue(staging, "SquirrelLauncherCreatedTime", Long.toString(System.currentTimeMillis()));
+            InstanceManager.setConfigValue(staging, "lastLaunchTime", "0");
+            InstanceManager.setConfigValue(staging, "lastTimePlayed", "0");
+            InstanceManager.setConfigValue(staging, "totalTimePlayed", "0");
             InstanceManager.loadFromDirectory(instanceId, staging);
             try {
                 Files.move(staging, destination, StandardCopyOption.ATOMIC_MOVE);
@@ -156,7 +174,9 @@ public final class LauncherService implements AutoCloseable {
                 Files.move(staging, destination);
             }
             moved = true;
-            return InstanceManager.load(instanceId);
+            MinecraftInstance duplicate = InstanceManager.load(instanceId);
+            this.instanceOrderManager.moveToTop(duplicate.id());
+            return duplicate;
         }
         finally {
             if (!moved && Files.exists(staging)) this.deleteDirectory(staging);
@@ -211,7 +231,9 @@ public final class LauncherService implements AutoCloseable {
             }
             throw exception;
         }
-        return InstanceManager.load(instanceId);
+        MinecraftInstance renamed = InstanceManager.load(instanceId);
+        this.instanceOrderManager.replace(instance.id(), renamed.id());
+        return renamed;
     }
 
     public void exportInstance(@NotNull MinecraftInstance instance, @NotNull Path destination) throws Exception {
@@ -229,6 +251,42 @@ public final class LauncherService implements AutoCloseable {
         }
 
         this.deleteDirectory(instanceDirectory);
+        this.instanceOrderManager.remove(instance.id());
+    }
+
+    public void reorderInstances(@NotNull List<MinecraftInstance> instances) throws Exception {
+        List<String> instanceIds = new ArrayList<>(instances.size());
+        for (MinecraftInstance instance : instances) instanceIds.add(instance.id());
+        this.instanceOrderManager.save(instanceIds);
+    }
+
+    @NotNull
+    public MinecraftInstance recordPlaytime(
+            @NotNull MinecraftInstance instance,
+            long elapsedSeconds,
+            long launchTimeMillis
+    ) throws Exception {
+        MinecraftInstance current = InstanceManager.load(instance.id());
+        long safeElapsedSeconds = Math.max(0, elapsedSeconds);
+        long totalTimePlayed = current.totalTimePlayedSeconds();
+        if (Long.MAX_VALUE - totalTimePlayed < safeElapsedSeconds) totalTimePlayed = Long.MAX_VALUE;
+        else totalTimePlayed += safeElapsedSeconds;
+        InstanceManager.setConfigValue(
+                current.directory(),
+                "lastLaunchTime",
+                Long.toString(Math.max(0, launchTimeMillis))
+        );
+        InstanceManager.setConfigValue(
+                current.directory(),
+                "totalTimePlayed",
+                Long.toString(totalTimePlayed)
+        );
+        InstanceManager.setConfigValue(
+                current.directory(),
+                "lastTimePlayed",
+                Long.toString(safeElapsedSeconds)
+        );
+        return InstanceManager.load(current.id());
     }
 
     @NotNull
