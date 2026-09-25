@@ -40,6 +40,7 @@ import javax.swing.table.AbstractTableModel;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Component;
+import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -51,11 +52,16 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
@@ -76,6 +82,7 @@ public final class LauncherFrame extends JFrame {
     private final JMenu instanceIconMenu;
     private final JMenuItem chooseInstanceIconItem;
     private final JMenuItem resetInstanceIconItem;
+    private final JMenuItem openInFilesItem;
     private final JMenuItem exportInstanceItem;
     private final JMenuItem deleteInstanceItem;
 
@@ -93,6 +100,8 @@ public final class LauncherFrame extends JFrame {
     private final JButton removeModButton;
 
     private final JTextArea activityArea = new JTextArea();
+    @NotNull
+    private final Map<String, StringBuilder> instanceActivityLogs = new HashMap<>();
     private final JTabbedPane tabs = new JTabbedPane();
     private final CardLayout instanceContentLayout = new CardLayout();
     private final JPanel instanceContentCards = new JPanel(this.instanceContentLayout);
@@ -100,12 +109,21 @@ public final class LauncherFrame extends JFrame {
     private JPanel activityPanel;
     private final JLabel statusLabel;
     private final JProgressBar progressBar = new JProgressBar();
+    private final JButton stopButton;
     private final JButton launchButton;
 
     @NotNull
     private final LauncherService launcherService;
     private boolean busy;
     private boolean updatingAccountSelector;
+    @Nullable
+    private volatile String taskActivityInstanceId;
+    @Nullable
+    private volatile Object taskActivityToken;
+    @Nullable
+    private volatile String runningActivityInstanceId;
+    @Nullable
+    private volatile String runningActivityPrefix;
     @Nullable
     private Process runningProcess;
 
@@ -121,6 +139,7 @@ public final class LauncherFrame extends JFrame {
         this.instanceIconMenu = new JMenu(Localization.text("main.menu.icon"));
         this.chooseInstanceIconItem = new JMenuItem(Localization.text("main.menu.choose_icon"));
         this.resetInstanceIconItem = new JMenuItem(Localization.text("main.menu.reset_icon"));
+        this.openInFilesItem = new JMenuItem(Localization.text("main.menu.open_in_files"));
         this.exportInstanceItem = new JMenuItem(Localization.text("main.menu.export"));
         this.deleteInstanceItem = new JMenuItem(Localization.text("main.menu.delete"));
         this.manageAccountsButton = new JButton(Localization.text("main.button.manage_accounts"));
@@ -133,6 +152,7 @@ public final class LauncherFrame extends JFrame {
         this.toggleModButton = new JButton(Localization.text("main.button.enable"));
         this.removeModButton = new JButton(Localization.text("main.button.remove"));
         this.statusLabel = new JLabel(Localization.text("main.status.ready"));
+        this.stopButton = new JButton(Localization.text("main.button.stop"));
         this.launchButton = new JButton(Localization.text("main.button.launch"));
 
         this.setDefaultCloseOperation(EXIT_ON_CLOSE);
@@ -147,15 +167,10 @@ public final class LauncherFrame extends JFrame {
         this.configureListeners();
         this.refreshAccountSelector();
         this.updateControlState();
-        this.appendActivity(Localization.text("main.activity.ready"));
         this.refreshInstances(null);
         SwingUtilities.invokeLater(() -> {
             if (this.launcherService.accounts().isEmpty()) {
                 this.showSettings(SquirrelLauncherDialog.SettingsTab.ACCOUNTS);
-                MinecraftAccount account = this.launcherService.account();
-                if (account != null) {
-                    this.appendActivity(Localization.text("main.activity.account_setup", account.username()));
-                }
             }
         });
     }
@@ -256,8 +271,8 @@ public final class LauncherFrame extends JFrame {
 
         this.modsPanel = createModsPanel();
         this.activityPanel = this.createActivityPanel();
-        this.tabs.addTab(Localization.text("main.tab.mods"), this.modsPanel);
         this.tabs.addTab(Localization.text("main.tab.activity"), this.activityPanel);
+        this.tabs.addTab(Localization.text("main.tab.mods"), this.modsPanel);
         panel.add(this.tabs, BorderLayout.CENTER);
         return panel;
     }
@@ -330,13 +345,25 @@ public final class LauncherFrame extends JFrame {
         this.progressBar.setIndeterminate(true);
         this.progressBar.setVisible(false);
         this.progressBar.setPreferredSize(new Dimension(90, 16));
-        JPanel status = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 2));
-        status.add(this.progressBar);
-        status.add(this.statusLabel);
+        JPanel status = new JPanel(new GridBagLayout());
+        GridBagConstraints progress = new GridBagConstraints();
+        progress.gridx = 0;
+        progress.anchor = GridBagConstraints.LINE_START;
+        progress.insets = new Insets(0, 0, 0, 8);
+        status.add(this.progressBar, progress);
+
+        GridBagConstraints statusText = new GridBagConstraints();
+        statusText.gridx = 1;
+        statusText.weightx = 1;
+        statusText.anchor = GridBagConstraints.LINE_START;
+        status.add(this.statusLabel, statusText);
         panel.add(status, BorderLayout.CENTER);
 
+        JPanel gameControls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        gameControls.add(this.stopButton);
         this.launchButton.setFont(this.launchButton.getFont().deriveFont(Font.BOLD));
-        panel.add(this.launchButton, BorderLayout.EAST);
+        gameControls.add(this.launchButton);
+        panel.add(gameControls, BorderLayout.EAST);
         return panel;
     }
 
@@ -357,6 +384,7 @@ public final class LauncherFrame extends JFrame {
         this.instanceIconMenu.add(this.chooseInstanceIconItem);
         this.instanceIconMenu.add(this.resetInstanceIconItem);
         this.instanceActionsMenu.add(this.instanceIconMenu);
+        this.instanceActionsMenu.add(this.openInFilesItem);
         this.instanceActionsMenu.addSeparator();
         this.instanceActionsMenu.add(this.exportInstanceItem);
         this.instanceActionsMenu.addSeparator();
@@ -389,11 +417,10 @@ public final class LauncherFrame extends JFrame {
             try {
                 this.launcherService.selectAccount(account);
                 this.setStatus(Localization.text("main.status.using_account", account.username()));
-                this.appendActivity(Localization.text("main.activity.switched_account", account.username()));
                 this.updateControlState();
             }
             catch (Exception exception) {
-                this.showError(Localization.text("main.error.select_account"), exception);
+                this.showError(Localization.text("main.error.select_account"), exception, null);
                 this.refreshAccountSelector();
             }
         });
@@ -404,13 +431,14 @@ public final class LauncherFrame extends JFrame {
             if (request == null) return;
 
             this.runTask(
+                    null,
                     Localization.text(
                             request.importsInstance() ? "main.status.importing" : "main.status.creating",
                             request.name()
                     ),
                     () -> this.launcherService.addInstance(request),
                     instance -> {
-                        this.appendActivity(Localization.text(
+                        this.appendActivity(instance.id(), Localization.text(
                                 request.importsInstance() ? "main.activity.imported" : "main.activity.created",
                                 instance.name()
                         ));
@@ -429,10 +457,16 @@ public final class LauncherFrame extends JFrame {
             if (name == null) return;
 
             this.runTask(
+                    instance.id(),
                     Localization.text("main.status.renaming", instance.name()),
                     () -> this.launcherService.renameInstance(instance, name),
                     renamed -> {
-                        this.appendActivity(Localization.text("main.activity.renamed", renamed.name()));
+                        StringBuilder activityLog = this.instanceActivityLogs.remove(instance.id());
+                        if (activityLog != null) this.instanceActivityLogs.put(renamed.id(), activityLog);
+                        this.appendActivity(
+                                renamed.id(),
+                                Localization.text("main.activity.renamed", renamed.name())
+                        );
                         this.refreshInstances(renamed.id());
                     }
             );
@@ -448,10 +482,11 @@ public final class LauncherFrame extends JFrame {
             if (name == null) return;
 
             this.runTask(
+                    instance.id(),
                     Localization.text("main.status.duplicating", instance.name()),
                     () -> this.launcherService.duplicateInstance(instance, name),
                     duplicate -> {
-                        this.appendActivity(Localization.text(
+                        this.appendActivity(duplicate.id(), Localization.text(
                                 "main.activity.duplicated",
                                 instance.name(),
                                 duplicate.name()
@@ -468,6 +503,7 @@ public final class LauncherFrame extends JFrame {
             if (conversion == null) return;
 
             this.runTask(
+                    instance.id(),
                     Localization.text("main.status.converting", instance.name()),
                     () -> this.launcherService.convertInstance(
                             instance,
@@ -475,7 +511,7 @@ public final class LauncherFrame extends JFrame {
                             conversion.loaderVersion()
                     ),
                     converted -> {
-                        this.appendActivity(Localization.text(
+                        this.appendActivity(converted.id(), Localization.text(
                                 "main.activity.converted",
                                 converted.name(),
                                 LauncherFrame.displayName(converted.type())
@@ -496,10 +532,14 @@ public final class LauncherFrame extends JFrame {
             if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
             Path source = chooser.getSelectedFile().toPath();
             this.runTask(
+                    instance.id(),
                     Localization.text("main.status.updating_icon", instance.name()),
                     () -> this.launcherService.setInstanceIcon(instance, source),
                     updated -> {
-                        this.appendActivity(Localization.text("main.activity.updated_icon", updated.name()));
+                        this.appendActivity(
+                                updated.id(),
+                                Localization.text("main.activity.updated_icon", updated.name())
+                        );
                         this.refreshInstances(updated.id());
                     }
             );
@@ -508,13 +548,38 @@ public final class LauncherFrame extends JFrame {
             MinecraftInstance instance = this.selectedInstance();
             if (instance == null || instance.iconKey() == null) return;
             this.runTask(
+                    instance.id(),
                     Localization.text("main.status.resetting_icon", instance.name()),
                     () -> this.launcherService.resetInstanceIcon(instance),
                     updated -> {
-                        this.appendActivity(Localization.text("main.activity.reset_icon", updated.name()));
+                        this.appendActivity(
+                                updated.id(),
+                                Localization.text("main.activity.reset_icon", updated.name())
+                        );
                         this.refreshInstances(updated.id());
                     }
             );
+        });
+        this.openInFilesItem.addActionListener(event -> {
+            MinecraftInstance instance = this.selectedInstance();
+            if (instance == null) return;
+            Path instanceDirectory = instance.directory();
+            try {
+                if (!Files.isDirectory(instanceDirectory)) {
+                    throw new IllegalStateException(Localization.text("main.error.instance_folder_missing", instanceDirectory));
+                }
+                if (!Desktop.isDesktopSupported()) {
+                    throw new UnsupportedOperationException(Localization.text("main.error.file_explorer_unsupported"));
+                }
+                Desktop desktop = Desktop.getDesktop();
+                if (!desktop.isSupported(Desktop.Action.OPEN)) {
+                    throw new UnsupportedOperationException(Localization.text("main.error.file_explorer_unsupported"));
+                }
+                desktop.open(instanceDirectory.toFile());
+            }
+            catch (Exception exception) {
+                this.showError(Localization.text("main.error.open_instance_folder"), exception, instance.id());
+            }
         });
         this.exportInstanceItem.addActionListener(event -> {
             MinecraftInstance instance = this.selectedInstance();
@@ -528,6 +593,7 @@ public final class LauncherFrame extends JFrame {
             Path destination = chooser.getSelectedFile().toPath();
 
             this.runTask(
+                    instance.id(),
                     Localization.text("main.status.exporting", instance.name()),
                     () -> {
                         this.launcherService.exportInstance(instance, destination);
@@ -535,7 +601,10 @@ public final class LauncherFrame extends JFrame {
                     },
                     ignored -> {
                         this.setStatus(Localization.text("main.status.ready"));
-                        this.appendActivity(Localization.text("main.activity.exported", instance.name()));
+                        this.appendActivity(
+                                instance.id(),
+                                Localization.text("main.activity.exported", instance.name())
+                        );
                     }
             );
         });
@@ -553,13 +622,14 @@ public final class LauncherFrame extends JFrame {
             if (choice != JOptionPane.OK_OPTION) return;
 
             this.runTask(
+                    instance.id(),
                     Localization.text("main.status.deleting", instance.name()),
                     () -> {
                         this.launcherService.deleteInstance(instance);
                         return null;
                     },
                     ignored -> {
-                        this.appendActivity(Localization.text("main.activity.deleted", instance.name()));
+                        this.instanceActivityLogs.remove(instance.id());
                         this.refreshInstances(null);
                     }
             );
@@ -575,7 +645,8 @@ public final class LauncherFrame extends JFrame {
             if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
             Path selectedFile = chooser.getSelectedFile().toPath();
 
-            runTask(
+            this.runTask(
+                    instance.id(),
                     Localization.text("main.status.installing_mod", selectedFile.getFileName()),
                     () -> {
                         this.launcherService.installMod(instance, selectedFile);
@@ -594,6 +665,7 @@ public final class LauncherFrame extends JFrame {
             boolean enable = mod.state() == ModState.DISABLED;
 
             this.runTask(
+                    instance.id(),
                     Localization.text(
                             enable ? "main.status.enabling_mod" : "main.status.disabling_mod",
                             mod.fileName()
@@ -623,6 +695,7 @@ public final class LauncherFrame extends JFrame {
             if (choice != JOptionPane.OK_OPTION) return;
 
             this.runTask(
+                    instance.id(),
                     Localization.text("main.status.removing_mod", mod.fileName()),
                     () -> {
                         this.launcherService.removeMod(instance, mod);
@@ -634,18 +707,35 @@ public final class LauncherFrame extends JFrame {
                     }
             );
         });
+        this.stopButton.addActionListener(event -> {
+            Process process = this.runningProcess;
+            if (process == null || !process.isAlive()) return;
+            int choice = JOptionPane.showConfirmDialog(
+                    this,
+                    Localization.text("main.confirm.stop"),
+                    Localization.text("main.dialog.stop"),
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE
+            );
+            if (choice != JOptionPane.YES_OPTION) return;
+
+            this.stopButton.setEnabled(false);
+            this.setStatus(Localization.text("main.status.stopping_minecraft"));
+            process.destroyForcibly();
+        });
         this.launchButton.addActionListener(event -> {
             MinecraftInstance instance = this.selectedInstance();
             MinecraftAccount account = this.launcherService.account();
             if (instance == null || account == null || this.runningProcess != null) return;
 
             this.showActivityTab();
-            this.appendActivity(Localization.text(
+            this.appendActivity(instance.id(), Localization.text(
                     "main.activity.launching",
                     instance.name(),
                     account.username()
             ));
             this.runTask(
+                    instance.id(),
                     Localization.text("main.status.preparing"),
                     () -> this.launcherService.launch(instance),
                     process -> {
@@ -657,10 +747,15 @@ public final class LauncherFrame extends JFrame {
     }
 
     private void refreshInstances(@Nullable String selectedId) {
-        runTask(
+        this.runTask(
+                null,
                 Localization.text("main.status.loading_instances"),
                 this.launcherService::listInstances,
                 instances -> {
+                    Set<String> instanceIds = new HashSet<>();
+                    for (MinecraftInstance instance : instances) instanceIds.add(instance.id());
+                    this.instanceActivityLogs.keySet().removeIf(id -> !instanceIds.contains(id));
+
                     this.instanceModel.clear();
                     for (MinecraftInstance instance : instances) this.instanceModel.addElement(instance);
 
@@ -685,6 +780,10 @@ public final class LauncherFrame extends JFrame {
         }
 
         this.instanceContentLayout.show(this.instanceContentCards, INSTANCE_DETAILS_CARD);
+        StringBuilder activityLog = this.instanceActivityLogs.get(instance.id());
+        this.activityArea.setText(activityLog == null ? "" : activityLog.toString());
+        this.activityArea.setCaretPosition(this.activityArea.getDocument().getLength());
+        this.showActivityTab();
         this.instanceNameLabel.setText(instance.name());
         this.instanceNameLabel.setIcon(InstanceIconProvider.INSTANCE.iconFor(instance));
         this.instanceNameLabel.setIconTextGap(12);
@@ -723,10 +822,10 @@ public final class LauncherFrame extends JFrame {
                 }
                 catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
-                    showError(Localization.text("main.error.loading_mods_interrupted"), exception);
+                    showError(Localization.text("main.error.loading_mods_interrupted"), exception, instance.id());
                 }
                 catch (ExecutionException exception) {
-                    showError(Localization.text("main.error.load_mods"), exception.getCause());
+                    showError(Localization.text("main.error.load_mods"), exception.getCause(), instance.id());
                 }
             }
         }.execute();
@@ -734,6 +833,8 @@ public final class LauncherFrame extends JFrame {
 
     private void monitorProcess(MinecraftInstance instance, Process process) {
         this.runningProcess = process;
+        this.runningActivityInstanceId = instance.id();
+        this.runningActivityPrefix = "[" + instance.name() + "] ";
         this.setStatus(Localization.text("main.status.minecraft_running"));
         this.updateControlState();
 
@@ -749,22 +850,35 @@ public final class LauncherFrame extends JFrame {
                 try {
                     int exitCode = get();
                     setStatus(Localization.text("main.status.minecraft_exited", exitCode));
-                    appendActivity(Localization.text("main.activity.minecraft_exited", instance.name(), exitCode));
+                    appendActivity(
+                            instance.id(),
+                            Localization.text("main.activity.minecraft_exited", instance.name(), exitCode)
+                    );
                 }
                 catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
-                    showError(Localization.text("main.error.waiting_interrupted"), exception);
+                    showError(Localization.text("main.error.waiting_interrupted"), exception, instance.id());
                 }
                 catch (ExecutionException exception) {
-                    showError(Localization.text("main.error.monitor_minecraft"), exception.getCause());
+                    showError(Localization.text("main.error.monitor_minecraft"), exception.getCause(), instance.id());
                 }
+                runningActivityPrefix = null;
+                runningActivityInstanceId = null;
                 updateControlState();
             }
         }.execute();
     }
 
-    private <T> void runTask(String status, BackgroundTask<T> task, Consumer<T> onSuccess) {
+    private <T> void runTask(
+            @Nullable String activityInstanceId,
+            @NotNull String status,
+            @NotNull BackgroundTask<T> task,
+            @NotNull Consumer<T> onSuccess
+    ) {
         if (this.busy) return;
+        Object activityToken = new Object();
+        this.taskActivityInstanceId = activityInstanceId;
+        this.taskActivityToken = activityToken;
         this.setStatus(status);
         this.setBusy(true);
 
@@ -782,13 +896,19 @@ public final class LauncherFrame extends JFrame {
                 }
                 catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
-                    showError(Localization.text("main.error.operation_interrupted"), exception);
+                    showError(Localization.text("main.error.operation_interrupted"), exception, activityInstanceId);
                 }
                 catch (ExecutionException exception) {
-                    showError(Localization.text("main.error.operation_failed"), exception.getCause());
+                    showError(Localization.text("main.error.operation_failed"), exception.getCause(), activityInstanceId);
                 }
                 catch (RuntimeException exception) {
-                    showError(Localization.text("main.error.operation_failed"), exception);
+                    showError(Localization.text("main.error.operation_failed"), exception, activityInstanceId);
+                }
+                finally {
+                    if (taskActivityToken == activityToken) {
+                        taskActivityToken = null;
+                        taskActivityInstanceId = null;
+                    }
                 }
             }
         }.execute();
@@ -816,6 +936,7 @@ public final class LauncherFrame extends JFrame {
         this.instanceIconMenu.setEnabled(available && instance != null);
         this.chooseInstanceIconItem.setEnabled(available && instance != null);
         this.resetInstanceIconItem.setEnabled(available && instance != null && instance.iconKey() != null);
+        this.openInFilesItem.setEnabled(available && instance != null);
         this.exportInstanceItem.setEnabled(available && instance != null);
         this.deleteInstanceItem.setEnabled(available && instance != null && this.runningProcess == null);
         this.refreshInstancesButton.setEnabled(available);
@@ -824,6 +945,7 @@ public final class LauncherFrame extends JFrame {
         this.installModButton.setEnabled(available && supportsMods);
         this.toggleModButton.setEnabled(available && supportsMods && mod != null);
         this.removeModButton.setEnabled(available && supportsMods && mod != null);
+        this.stopButton.setEnabled(available && this.runningProcess != null && this.runningProcess.isAlive());
         this.toggleModButton.setText(Localization.text(
                 mod != null && mod.state() == ModState.ENABLED ? "main.button.disable" : "main.button.enable"
         ));
@@ -854,19 +976,10 @@ public final class LauncherFrame extends JFrame {
     }
 
     @Nullable
-    private String promptForInstanceName(
-            @NotNull String title,
-            @NotNull String prompt,
-            @NotNull String initialValue
-    ) {
+    private String promptForInstanceName(@NotNull String title, @NotNull String prompt, @NotNull String initialValue) {
         String name = (String) JOptionPane.showInputDialog(
-                this,
-                prompt,
-                title,
-                JOptionPane.PLAIN_MESSAGE,
-                null,
-                null,
-                initialValue
+                this, prompt, title,
+                JOptionPane.PLAIN_MESSAGE, null, null, initialValue
         );
         if (name == null) return null;
         name = name.trim();
@@ -883,8 +996,7 @@ public final class LauncherFrame extends JFrame {
     private void setModsTabVisible(boolean visible) {
         boolean currentlyVisible = this.tabs.indexOfComponent(this.modsPanel) >= 0;
         if (visible && !currentlyVisible) {
-            this.tabs.insertTab(Localization.text("main.tab.mods"), null, this.modsPanel, null, 0);
-            this.tabs.setSelectedComponent(this.modsPanel);
+            this.tabs.insertTab(Localization.text("main.tab.mods"), null, this.modsPanel, null, 1);
         }
         else if (!visible && currentlyVisible) {
             this.tabs.remove(this.modsPanel);
@@ -903,29 +1015,53 @@ public final class LauncherFrame extends JFrame {
         this.statusLabel.setText(status);
     }
 
-    private void appendBackendOutput(String line) {
-        if (!line.isBlank()) appendActivity(line);
+    private void appendBackendOutput(@NotNull String line) {
+        if (line.isBlank()) return;
+        Object activityToken = this.taskActivityToken;
+        String instanceId;
+        if (activityToken != null) {
+            instanceId = this.taskActivityInstanceId;
+        }
+        else {
+            instanceId = this.runningActivityInstanceId;
+            String prefix = this.runningActivityPrefix;
+            if (prefix == null || !line.startsWith(prefix)) return;
+        }
+        if (instanceId != null) this.appendActivity(instanceId, line);
     }
 
-    private void appendActivity(String message) {
+    private void appendActivity(@NotNull String instanceId, @NotNull String message) {
         if (!SwingUtilities.isEventDispatchThread()) {
-            SwingUtilities.invokeLater(() -> appendActivity(message));
+            SwingUtilities.invokeLater(() -> appendActivity(instanceId, message));
             return;
         }
 
         String line = "[" + TIME_FORMAT.format(LocalTime.now()) + "] " + message + System.lineSeparator();
-        this.activityArea.append(line);
-        int extra = this.activityArea.getDocument().getLength() - MAX_ACTIVITY_CHARACTERS;
-        if (extra > 0) this.activityArea.replaceRange("", 0, extra);
-        this.activityArea.setCaretPosition(this.activityArea.getDocument().getLength());
+        StringBuilder activityLog = this.instanceActivityLogs.computeIfAbsent(instanceId, ignored -> new StringBuilder());
+        activityLog.append(line);
+        int extra = activityLog.length() - MAX_ACTIVITY_CHARACTERS;
+        if (extra > 0) activityLog.delete(0, extra);
+
+        if (instanceId.equals(this.selectedInstanceId())) {
+            this.activityArea.append(line);
+            extra = this.activityArea.getDocument().getLength() - MAX_ACTIVITY_CHARACTERS;
+            if (extra > 0) this.activityArea.replaceRange("", 0, extra);
+            this.activityArea.setCaretPosition(this.activityArea.getDocument().getLength());
+        }
     }
 
-    private void showError(String title, Throwable throwable) {
+    private void showError(
+            @NotNull String title,
+            @NotNull Throwable throwable,
+            @Nullable String activityInstanceId
+    ) {
         Throwable cause = rootCause(throwable);
         String message = cause.getMessage();
         if (message == null || message.isBlank()) message = cause.getClass().getSimpleName();
         setStatus(title + ".");
-        appendActivity(title + ": " + message.replace('\n', ' '));
+        if (activityInstanceId != null) {
+            this.appendActivity(activityInstanceId, title + ": " + message.replace('\n', ' '));
+        }
         JOptionPane.showMessageDialog(this, message, title, JOptionPane.ERROR_MESSAGE);
     }
 
