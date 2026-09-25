@@ -30,14 +30,15 @@ import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
-import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JComponent;
+import javax.swing.KeyStroke;
 import javax.swing.ListCellRenderer;
 import javax.swing.ListSelectionModel;
+import javax.swing.OverlayLayout;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.TransferHandler;
@@ -59,6 +60,7 @@ import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
@@ -84,6 +86,7 @@ import java.util.function.Consumer;
 public final class LauncherFrame extends JFrame {
     private static final int MAX_ACTIVITY_CHARACTERS = 250_000;
     private static final int INSTANCE_GEAR_WIDTH = 36;
+    private static final int INSTANCE_SIDEBAR_WIDTH = 400;
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss");
     private static final String EMPTY_INSTANCE_CARD = "empty";
     private static final String INSTANCE_DETAILS_CARD = "details";
@@ -111,6 +114,10 @@ public final class LauncherFrame extends JFrame {
     @NotNull
     private final JPopupMenu instanceSortMenu = new JPopupMenu();
     private final JPopupMenu instanceActionsMenu = new JPopupMenu();
+    @NotNull
+    private final JPopupMenu emptyInstanceActionsMenu = new JPopupMenu();
+    @NotNull
+    private final JMenuItem addInstanceMenuItem;
     private final JMenuItem renameInstanceItem;
     private final JMenuItem duplicateInstanceItem;
     private final JMenuItem convertInstanceItem;
@@ -125,7 +132,18 @@ public final class LauncherFrame extends JFrame {
     private final JButton manageAccountsButton;
     private final JButton settingsButton;
 
+    @NotNull
     private final JLabel instanceNameLabel;
+    @NotNull
+    private final JLabel instanceIconLabel = new JLabel();
+    @NotNull
+    private final JLabel instanceNamePencilLabel = new JLabel(SidebarIcon.PENCIL);
+    @NotNull
+    private final JLabel instanceIconPencilLabel = new JLabel(SidebarIcon.PENCIL);
+    @NotNull
+    private final JPanel instanceNameEditorPanel = new JPanel(new BorderLayout(6, 0));
+    @NotNull
+    private final JPanel instanceIconEditorPanel = new JPanel();
     private final JLabel instanceTypeLabel;
     private final JLabel loaderVersionLabel;
     @NotNull
@@ -183,6 +201,7 @@ public final class LauncherFrame extends JFrame {
         this.closeInstanceSearchButton.getAccessibleContext().setAccessibleName(Localization.text("main.button.close_search"));
         this.instanceSearchField.setToolTipText(Localization.text("main.prompt.search_instances"));
         this.instanceSearchField.getAccessibleContext().setAccessibleName(Localization.text("main.dialog.search_instances"));
+        this.addInstanceMenuItem = new JMenuItem(Localization.text("main.button.add_instance"));
         this.renameInstanceItem = new JMenuItem(Localization.text("main.menu.rename"));
         this.duplicateInstanceItem = new JMenuItem(Localization.text("main.menu.duplicate"));
         this.convertInstanceItem = new JMenuItem(Localization.text("main.menu.convert"));
@@ -195,6 +214,14 @@ public final class LauncherFrame extends JFrame {
         this.manageAccountsButton = new JButton(Localization.text("main.button.manage_accounts"));
         this.settingsButton = new JButton(Localization.text("main.button.settings"));
         this.instanceNameLabel = new JLabel(Localization.text("main.instance.select"));
+        this.instanceNameEditorPanel.setToolTipText(Localization.text("main.tooltip.rename_instance"));
+        this.instanceIconEditorPanel.setToolTipText(Localization.text("main.tooltip.manage_instance_icon"));
+        this.instanceNameEditorPanel.getAccessibleContext().setAccessibleName(
+                Localization.text("main.tooltip.rename_instance")
+        );
+        this.instanceIconEditorPanel.getAccessibleContext().setAccessibleName(
+                Localization.text("main.tooltip.manage_instance_icon")
+        );
         this.instanceTypeLabel = new JLabel(Localization.text("main.instance.type", "—"));
         this.loaderVersionLabel = new JLabel(Localization.text("main.instance.loader", "—"));
         this.instancePlaytimeLabel = new JLabel(LauncherFrame.playtimeText(0));
@@ -274,12 +301,15 @@ public final class LauncherFrame extends JFrame {
         return panel;
     }
 
-    private JSplitPane createMainContent() {
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, this.createInstanceSidebar(), this.createInstanceArea());
-        splitPane.setResizeWeight(0.3);
-        splitPane.setDividerLocation(310);
-        splitPane.setBorder(null);
-        return splitPane;
+    private JPanel createMainContent() {
+        JPanel panel = new JPanel(new BorderLayout());
+        JPanel instanceSidebar = this.createInstanceSidebar();
+        instanceSidebar.setPreferredSize(new Dimension(INSTANCE_SIDEBAR_WIDTH, 0));
+        instanceSidebar.setMinimumSize(new Dimension(INSTANCE_SIDEBAR_WIDTH, 0));
+        instanceSidebar.setMaximumSize(new Dimension(INSTANCE_SIDEBAR_WIDTH, Integer.MAX_VALUE));
+        panel.add(instanceSidebar, BorderLayout.WEST);
+        panel.add(this.createInstanceArea(), BorderLayout.CENTER);
+        return panel;
     }
 
     private JPanel createInstanceArea() {
@@ -365,7 +395,7 @@ public final class LauncherFrame extends JFrame {
 
                 List<MinecraftInstance> reordered = new ArrayList<>(LauncherFrame.this.instances);
                 MinecraftInstance moved = reordered.remove(sourceIndex);
-                destinationIndex = Math.max(0, Math.min(destinationIndex, reordered.size()));
+                destinationIndex = Math.clamp(destinationIndex, 0, reordered.size());
                 reordered.add(destinationIndex, moved);
                 try {
                     LauncherFrame.this.launcherService.reorderInstances(reordered);
@@ -411,31 +441,56 @@ public final class LauncherFrame extends JFrame {
         JPanel panel = new JPanel(new GridBagLayout());
 
         this.instanceNameLabel.setFont(this.instanceNameLabel.getFont().deriveFont(Font.BOLD, 22f));
+        this.instanceNamePencilLabel.setVisible(false);
+        this.instanceIconPencilLabel.setVisible(false);
+        this.instanceNameEditorPanel.setOpaque(false);
+        this.instanceIconEditorPanel.setOpaque(false);
+        this.instanceNameEditorPanel.setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
+        this.instanceIconEditorPanel.setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
+        this.instanceNameEditorPanel.add(this.instanceNameLabel, BorderLayout.CENTER);
+        this.instanceNameEditorPanel.add(this.instanceNamePencilLabel, BorderLayout.EAST);
+        this.instanceIconEditorPanel.setLayout(new OverlayLayout(this.instanceIconEditorPanel));
+        this.instanceIconLabel.setAlignmentX(0.5f);
+        this.instanceIconLabel.setAlignmentY(0.5f);
+        this.instanceIconPencilLabel.setAlignmentX(0.0f);
+        this.instanceIconPencilLabel.setAlignmentY(1.0f);
+        this.instanceIconEditorPanel.add(this.instanceIconLabel);
+        this.instanceIconEditorPanel.add(this.instanceIconPencilLabel);
+        this.instanceIconEditorPanel.setComponentZOrder(this.instanceIconPencilLabel, 0);
+
+        GridBagConstraints icon = new GridBagConstraints();
+        icon.gridx = 0;
+        icon.gridy = 0;
+        icon.gridheight = 2;
+        icon.anchor = GridBagConstraints.FIRST_LINE_START;
+        icon.insets = new Insets(0, 0, 0, 12);
+        panel.add(this.instanceIconEditorPanel, icon);
+
         GridBagConstraints name = new GridBagConstraints();
-        name.gridx = 0;
+        name.gridx = 1;
         name.gridy = 0;
         name.gridwidth = 3;
         name.weightx = 1;
         name.anchor = GridBagConstraints.LINE_START;
         name.insets = new Insets(0, 0, 5, 0);
-        panel.add(this.instanceNameLabel, name);
+        panel.add(this.instanceNameEditorPanel, name);
 
         GridBagConstraints type = new GridBagConstraints();
-        type.gridx = 0;
+        type.gridx = 1;
         type.gridy = 1;
         type.anchor = GridBagConstraints.LINE_START;
         type.insets = new Insets(0, 0, 0, 18);
         panel.add(this.instanceTypeLabel, type);
 
         GridBagConstraints loader = new GridBagConstraints();
-        loader.gridx = 1;
+        loader.gridx = 2;
         loader.gridy = 1;
         loader.weightx = 1;
         loader.anchor = GridBagConstraints.LINE_START;
         panel.add(this.loaderVersionLabel, loader);
 
         GridBagConstraints playtime = new GridBagConstraints();
-        playtime.gridx = 2;
+        playtime.gridx = 3;
         playtime.gridy = 1;
         playtime.anchor = GridBagConstraints.LINE_END;
         panel.add(this.instancePlaytimeLabel, playtime);
@@ -520,6 +575,13 @@ public final class LauncherFrame extends JFrame {
             this.instanceSearchField.setText("");
             this.instanceHeaderLayout.show(this.instanceHeaderCards, INSTANCE_HEADER_CARD);
         });
+        this.instanceHeaderCards.registerKeyboardAction(
+                event -> {
+                    if (this.instanceSearchField.isShowing()) this.closeInstanceSearchButton.doClick();
+                },
+                KeyStroke.getKeyStroke("ESCAPE"),
+                JComponent.WHEN_IN_FOCUSED_WINDOW
+        );
         this.instanceSearchField.getDocument().addDocumentListener(new DocumentListener() {
             @Override
             public void insertUpdate(@NotNull DocumentEvent event) {
@@ -595,22 +657,57 @@ public final class LauncherFrame extends JFrame {
         this.instanceActionsMenu.add(this.exportInstanceItem);
         this.instanceActionsMenu.addSeparator();
         this.instanceActionsMenu.add(this.deleteInstanceItem);
+        new EditHoverListener(
+                this.instanceNameEditorPanel,
+                this.instanceNamePencilLabel,
+                () -> {
+                    if (this.renameInstanceItem.isEnabled()) this.renameInstanceItem.doClick();
+                },
+                this.instanceNameLabel
+        );
+        new EditHoverListener(
+                this.instanceIconEditorPanel,
+                this.instanceIconPencilLabel,
+                () -> {
+                    if (this.instanceIconMenu.isEnabled()) {
+                        this.instanceIconMenu.getPopupMenu().show(
+                                this.instanceIconEditorPanel,
+                                0,
+                                this.instanceIconEditorPanel.getHeight()
+                        );
+                    }
+                },
+                this.instanceIconLabel
+        );
+        this.emptyInstanceActionsMenu.add(this.addInstanceMenuItem);
+        this.addInstanceMenuItem.addActionListener(event -> this.addInstanceButton.doClick());
         this.instanceList.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(@NotNull MouseEvent event) {
                 int index = LauncherFrame.this.instanceList.locationToIndex(event.getPoint());
                 Rectangle bounds = index < 0 ? null : LauncherFrame.this.instanceList.getCellBounds(index, index);
+                if (SwingUtilities.isRightMouseButton(event) && (bounds == null || !bounds.contains(event.getPoint()))) {
+                    LauncherFrame.this.emptyInstanceActionsMenu.show(LauncherFrame.this.instanceList, event.getX(), event.getY());
+                    return;
+                }
                 if (bounds == null || !bounds.contains(event.getPoint())) return;
-                boolean gearClick = SwingUtilities.isLeftMouseButton(event)
-                        && event.getX() >= bounds.x + bounds.width - INSTANCE_GEAR_WIDTH;
+                boolean gearClick = SwingUtilities.isLeftMouseButton(event) && event.getX() >= bounds.x + bounds.width - INSTANCE_GEAR_WIDTH;
                 boolean actionClick = SwingUtilities.isRightMouseButton(event) || gearClick;
                 if (!actionClick || LauncherFrame.this.busy) return;
 
                 LauncherFrame.this.instanceList.setSelectedIndex(index);
                 LauncherFrame.this.updateControlState();
-                LauncherFrame.this.instanceActionsMenu.show(
-                        LauncherFrame.this.instanceList, event.getX(), event.getY()
-                );
+                LauncherFrame.this.instanceActionsMenu.show(LauncherFrame.this.instanceList, event.getX(), event.getY());
+            }
+
+            @Override
+            public void mouseClicked(@NotNull MouseEvent event) {
+                if (LauncherFrame.this.busy || event.getClickCount() != 2 || !SwingUtilities.isLeftMouseButton(event)) return;
+                int index = LauncherFrame.this.instanceList.locationToIndex(event.getPoint());
+                Rectangle bounds = index < 0 ? null : LauncherFrame.this.instanceList.getCellBounds(index, index);
+                if (bounds == null || !bounds.contains(event.getPoint())) return;
+                LauncherFrame.this.instanceList.setSelectedIndex(index);
+                if (LauncherFrame.this.launchButton.isEnabled()) LauncherFrame.this.launchButton.doClick();
             }
         });
         this.modTable.getSelectionModel().addListSelectionListener(event -> {
@@ -968,9 +1065,7 @@ public final class LauncherFrame extends JFrame {
                     this.instances.clear();
                     this.instances.addAll(instances);
                     this.rebuildInstanceList(selectedId);
-                    setStatus(Localization.text(
-                            instances.isEmpty() ? "main.status.add_instance" : "main.status.ready"
-                    ));
+                    setStatus(Localization.text(instances.isEmpty() ? "main.status.add_instance" : "main.status.ready"));
                 }
         );
     }
@@ -1015,7 +1110,7 @@ public final class LauncherFrame extends JFrame {
         this.modTableModel.setMods(List.of());
         if (instance == null) {
             this.instanceContentLayout.show(this.instanceContentCards, EMPTY_INSTANCE_CARD);
-            updateControlState();
+            this.updateControlState();
             return;
         }
 
@@ -1025,12 +1120,8 @@ public final class LauncherFrame extends JFrame {
         this.activityArea.setCaretPosition(this.activityArea.getDocument().getLength());
         this.showActivityTab();
         this.instanceNameLabel.setText(instance.name());
-        this.instanceNameLabel.setIcon(InstanceIconProvider.INSTANCE.iconFor(instance));
-        this.instanceNameLabel.setIconTextGap(12);
-        this.instanceTypeLabel.setText(Localization.text(
-                "main.instance.type",
-                LauncherFrame.displayName(instance.type())
-        ));
+        this.instanceIconLabel.setIcon(InstanceIconProvider.INSTANCE.iconFor(instance));
+        this.instanceTypeLabel.setText(Localization.text("main.instance.type", LauncherFrame.displayName(instance.type())));
         this.loaderVersionLabel.setText(instance.loaderVersion() == null
                 ? "Minecraft " + SquirrelLauncher.VERSION
                 : Localization.text("main.instance.loader", instance.loaderVersion()));
@@ -1204,20 +1295,25 @@ public final class LauncherFrame extends JFrame {
         MinecraftInstance instance = selectedInstance();
         boolean supportsMods = instance != null && instance.type().hasMods;
         ManagedMod mod = this.selectedMod();
+        boolean canRenameInstance = available && instance != null && this.runningProcess == null;
+        boolean canManageInstanceIcon = available && instance != null;
 
         this.accountSelector.setEnabled(available && this.accountSelector.getItemCount() > 0);
         this.manageAccountsButton.setEnabled(available);
         this.settingsButton.setEnabled(available);
         this.addInstanceButton.setEnabled(available);
+        this.addInstanceMenuItem.setEnabled(available);
         this.searchInstancesButton.setEnabled(available && !this.instances.isEmpty());
         this.sortInstancesButton.setEnabled(available && this.instances.size() > 1);
         this.instanceSearchField.setEnabled(available);
         this.closeInstanceSearchButton.setEnabled(available);
-        this.renameInstanceItem.setEnabled(available && instance != null && this.runningProcess == null);
+        this.renameInstanceItem.setEnabled(canRenameInstance);
         this.duplicateInstanceItem.setEnabled(available && instance != null && this.runningProcess == null);
         this.convertInstanceItem.setEnabled(available && instance != null && this.runningProcess == null);
-        this.instanceIconMenu.setEnabled(available && instance != null);
-        this.chooseInstanceIconItem.setEnabled(available && instance != null);
+        this.instanceIconMenu.setEnabled(canManageInstanceIcon);
+        this.chooseInstanceIconItem.setEnabled(canManageInstanceIcon);
+        this.instanceNameEditorPanel.setEnabled(canRenameInstance);
+        this.instanceIconEditorPanel.setEnabled(canManageInstanceIcon);
         this.resetInstanceIconItem.setEnabled(available && instance != null && instance.iconKey() != null);
         this.openInFilesItem.setEnabled(available && instance != null);
         this.exportInstanceItem.setEnabled(available && instance != null);
@@ -1432,7 +1528,8 @@ public final class LauncherFrame extends JFrame {
     private enum SidebarIcon implements Icon {
         SEARCH,
         SORT,
-        CLOSE;
+        CLOSE,
+        PENCIL;
 
         private static final int ICON_SIZE = 16;
 
@@ -1470,6 +1567,13 @@ public final class LauncherFrame extends JFrame {
                         drawing.drawLine(3, 3, 13, 13);
                         drawing.drawLine(13, 3, 3, 13);
                     }
+                    case PENCIL -> {
+                        drawing.drawLine(3, 12, 11, 4);
+                        drawing.drawLine(5, 14, 13, 6);
+                        drawing.drawLine(3, 12, 2, 15);
+                        drawing.drawLine(2, 15, 5, 14);
+                        drawing.drawLine(11, 4, 13, 6);
+                    }
                 }
             }
             finally {
@@ -1485,6 +1589,57 @@ public final class LauncherFrame extends JFrame {
         @Override
         public int getIconHeight() {
             return ICON_SIZE;
+        }
+    }
+
+    private static final class EditHoverListener extends MouseAdapter {
+        @NotNull
+        private final JPanel targetPanel;
+        @NotNull
+        private final JLabel pencilLabel;
+        @NotNull
+        private final Runnable editAction;
+
+        private EditHoverListener(
+                @NotNull JPanel targetPanel,
+                @NotNull JLabel pencilLabel,
+                @NotNull Runnable editAction,
+                @NotNull Component... interactiveComponents
+        ) {
+            this.targetPanel = targetPanel;
+            this.pencilLabel = pencilLabel;
+            this.editAction = editAction;
+            this.targetPanel.addMouseListener(this);
+            this.pencilLabel.addMouseListener(this);
+            for (Component interactiveComponent : interactiveComponents) interactiveComponent.addMouseListener(this);
+        }
+
+        @Override
+        public void mouseEntered(@NotNull MouseEvent event) {
+            this.setHovered(true);
+        }
+
+        @Override
+        public void mouseExited(@NotNull MouseEvent event) {
+            Point point = SwingUtilities.convertPoint(
+                    (Component) event.getSource(),
+                    event.getPoint(),
+                    this.targetPanel
+            );
+            if (!this.targetPanel.contains(point)) this.setHovered(false);
+        }
+
+        @Override
+        public void mouseClicked(@NotNull MouseEvent event) {
+            if (this.targetPanel.isEnabled() && SwingUtilities.isLeftMouseButton(event)) this.editAction.run();
+        }
+
+        private void setHovered(boolean hovered) {
+            boolean showEditState = hovered && this.targetPanel.isEnabled();
+            this.targetPanel.setBorder(showEditState
+                    ? BorderFactory.createLineBorder(this.targetPanel.getForeground())
+                    : BorderFactory.createEmptyBorder(1, 1, 1, 1));
+            this.pencilLabel.setVisible(showEditState);
         }
     }
 
