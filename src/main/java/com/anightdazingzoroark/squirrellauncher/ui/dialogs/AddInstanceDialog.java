@@ -87,14 +87,17 @@ public final class AddInstanceDialog extends AbstractDialog<InstanceAdditionRequ
         typePanel.add(this.createTypeButton(InstanceType.CLEANROOM, typeGroup));
         vanillaButton.setSelected(true);
 
+        JLabel typeLabel = new JLabel(Localization.text("add.label.type"));
+        Dimension typeLabelSize = typeLabel.getPreferredSize();
+        typeLabelSize.width = Math.max(typeLabelSize.width, this.loaderLabel.getPreferredSize().width);
+        typeLabel.setPreferredSize(typeLabelSize);
+        Dimension typePanelSize = typePanel.getPreferredSize();
+        typePanelSize.width = Math.max(typePanelSize.width, this.loaderField.getPreferredSize().width);
+        typePanel.setPreferredSize(typePanelSize);
+
         JPanel creationPanel = new JPanel(new GridBagLayout());
         creationPanel.setBorder(BorderFactory.createEmptyBorder(12, 8, 12, 8));
-        this.addRow(
-                creationPanel,
-                0,
-                new JLabel(Localization.text("add.label.type")),
-                typePanel
-        );
+        this.addRow(creationPanel, 0, typeLabel, typePanel);
         this.addRow(creationPanel, 1, this.loaderLabel, this.loaderField);
         this.tabs.addTab(Localization.text("add.tab.create"), creationPanel);
 
