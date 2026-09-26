@@ -3,6 +3,7 @@ package com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels;
 import com.anightdazingzoroark.squirrellauncher.SquirrelLauncher;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
 import com.anightdazingzoroark.squirrellauncher.ui.InstanceIconProvider;
+import com.anightdazingzoroark.squirrellauncher.ui.LauncherActions;
 import com.anightdazingzoroark.squirrellauncher.ui.LauncherFrame;
 import com.anightdazingzoroark.squirrellauncher.ui.Localization;
 import com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels.instanceDetailsTabs.ActivityTab;
@@ -68,10 +69,10 @@ public final class InstanceDetailsPanel extends JPanel {
     @NotNull
     private final ModsTab modsTab;
 
-    public InstanceDetailsPanel(@NotNull Listener listener, @NotNull ModsTab.Listener modsListener) {
+    public InstanceDetailsPanel(@NotNull LauncherActions launcherActions) {
         super();
         this.setLayout(this.contentLayout);
-        this.modsTab = new ModsTab(modsListener);
+        this.modsTab = new ModsTab(launcherActions);
 
         JPanel emptyPanel = new JPanel(new GridBagLayout());
         this.emptyInstanceMessage.setFont(this.emptyInstanceMessage.getFont().deriveFont(Font.BOLD, 22f));
@@ -80,7 +81,7 @@ public final class InstanceDetailsPanel extends JPanel {
 
         JPanel detailsPanel = new JPanel(new BorderLayout(0, 10));
         detailsPanel.setBorder(BorderFactory.createEmptyBorder(14, 16, 10, 16));
-        detailsPanel.add(this.createInstanceHeader(listener), BorderLayout.NORTH);
+        detailsPanel.add(this.createInstanceHeader(launcherActions), BorderLayout.NORTH);
         this.tabs.addTab(Localization.text("main.tab.activity"), this.activityTab);
         this.tabs.addTab(Localization.text("main.tab.mods"), this.modsTab);
         detailsPanel.add(this.tabs, BorderLayout.CENTER);
@@ -135,7 +136,7 @@ public final class InstanceDetailsPanel extends JPanel {
     }
 
     @NotNull
-    private JPanel createInstanceHeader(@NotNull Listener listener) {
+    private JPanel createInstanceHeader(@NotNull LauncherActions launcherActions) {
         JPanel panel = new JPanel(new GridBagLayout());
 
         this.instanceNameLabel.setFont(this.instanceNameLabel.getFont().deriveFont(Font.BOLD, 22f));
@@ -167,13 +168,13 @@ public final class InstanceDetailsPanel extends JPanel {
         new EditHoverListener(
                 this.instanceNameEditorPanel,
                 this.instanceNamePencilLabel,
-                listener::renameRequested,
+                launcherActions::renameRequested,
                 this.instanceNameLabel
         );
         new EditHoverListener(
                 this.instanceIconEditorPanel,
                 this.instanceIconPencilLabel,
-                () -> listener.manageIconRequested(this.instanceIconEditorPanel),
+                () -> launcherActions.manageIconRequested(this.instanceIconEditorPanel),
                 this.instanceIconLabel
         );
 
@@ -224,12 +225,6 @@ public final class InstanceDetailsPanel extends JPanel {
         else if (!visible && currentlyVisible) {
             this.tabs.remove(this.modsTab);
         }
-    }
-
-    public interface Listener {
-        public void renameRequested();
-
-        public void manageIconRequested(@NotNull Component source);
     }
 
     private enum DetailsIcon implements Icon {

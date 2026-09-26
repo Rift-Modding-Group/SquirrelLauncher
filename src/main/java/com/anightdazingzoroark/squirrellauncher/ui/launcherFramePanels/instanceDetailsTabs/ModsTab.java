@@ -2,6 +2,7 @@ package com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels.instance
 
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ManagedMod;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModState;
+import com.anightdazingzoroark.squirrellauncher.ui.LauncherActions;
 import com.anightdazingzoroark.squirrellauncher.ui.LauncherFrame;
 import com.anightdazingzoroark.squirrellauncher.ui.Localization;
 import org.jetbrains.annotations.NotNull;
@@ -31,7 +32,7 @@ public final class ModsTab extends JPanel {
     @NotNull
     private final JButton removeModButton = new JButton(Localization.text("main.button.remove"));
 
-    public ModsTab(@NotNull Listener listener) {
+    public ModsTab(@NotNull LauncherActions launcherActions) {
         super(new BorderLayout(0, 8));
         this.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
 
@@ -40,7 +41,7 @@ public final class ModsTab extends JPanel {
         this.modTable.getColumnModel().getColumn(0).setPreferredWidth(420);
         this.modTable.getColumnModel().getColumn(1).setPreferredWidth(100);
         this.modTable.getSelectionModel().addListSelectionListener(event -> {
-            if (!event.getValueIsAdjusting()) listener.selectionChanged();
+            if (!event.getValueIsAdjusting()) launcherActions.modSelectionChanged();
         });
         this.add(new JScrollPane(this.modTable), BorderLayout.CENTER);
 
@@ -50,9 +51,9 @@ public final class ModsTab extends JPanel {
         actions.add(this.removeModButton);
         this.add(actions, BorderLayout.SOUTH);
 
-        this.installModButton.addActionListener(event -> listener.installRequested());
-        this.toggleModButton.addActionListener(event -> listener.toggleRequested());
-        this.removeModButton.addActionListener(event -> listener.removeRequested());
+        this.installModButton.addActionListener(event -> launcherActions.installModRequested());
+        this.toggleModButton.addActionListener(event -> launcherActions.toggleModRequested());
+        this.removeModButton.addActionListener(event -> launcherActions.removeModRequested());
     }
 
     public void setMods(@NotNull List<ManagedMod> mods) {
@@ -74,16 +75,6 @@ public final class ModsTab extends JPanel {
         this.toggleModButton.setText(Localization.text(
                 mod != null && mod.state() == ModState.ENABLED ? "main.button.disable" : "main.button.enable"
         ));
-    }
-
-    public interface Listener {
-        void selectionChanged();
-
-        void installRequested();
-
-        void toggleRequested();
-
-        void removeRequested();
     }
 
     private static final class ModTableModel extends AbstractTableModel {

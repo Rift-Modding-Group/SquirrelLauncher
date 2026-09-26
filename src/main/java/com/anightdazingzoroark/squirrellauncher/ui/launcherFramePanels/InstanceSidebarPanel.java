@@ -2,6 +2,7 @@ package com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels;
 
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
 import com.anightdazingzoroark.squirrellauncher.ui.InstanceIconProvider;
+import com.anightdazingzoroark.squirrellauncher.ui.LauncherActions;
 import com.anightdazingzoroark.squirrellauncher.ui.LauncherFrame;
 import com.anightdazingzoroark.squirrellauncher.ui.Localization;
 import org.jetbrains.annotations.NotNull;
@@ -58,7 +59,7 @@ public final class InstanceSidebarPanel extends JPanel {
     private static final String INSTANCE_SEARCH_CARD = "search";
 
     @NotNull
-    private final Listener listener;
+    private final LauncherActions launcherActions;
     @NotNull
     private final List<MinecraftInstance> instances = new ArrayList<>();
     @NotNull
@@ -109,9 +110,9 @@ public final class InstanceSidebarPanel extends JPanel {
     private final JMenuItem deleteInstanceItem = new JMenuItem(Localization.text("main.menu.delete"));
     private boolean busy;
 
-    public InstanceSidebarPanel(@NotNull Listener listener) {
+    public InstanceSidebarPanel(@NotNull LauncherActions launcherActions) {
         super(new BorderLayout(0, 8));
-        this.listener = listener;
+        this.launcherActions = launcherActions;
         this.setPreferredSize(new Dimension(INSTANCE_SIDEBAR_WIDTH, 0));
         this.setMinimumSize(new Dimension(INSTANCE_SIDEBAR_WIDTH, 0));
         this.setMaximumSize(new Dimension(INSTANCE_SIDEBAR_WIDTH, Integer.MAX_VALUE));
@@ -262,7 +263,7 @@ public final class InstanceSidebarPanel extends JPanel {
         this.instanceList.setDragEnabled(true);
         this.instanceList.setDropMode(DropMode.INSERT);
         this.instanceList.addListSelectionListener(event -> {
-            if (!event.getValueIsAdjusting()) this.listener.selectionChanged();
+            if (!event.getValueIsAdjusting()) this.launcherActions.selectionChanged();
         });
         this.instanceList.setTransferHandler(new TransferHandler() {
             @Nullable
@@ -310,7 +311,7 @@ public final class InstanceSidebarPanel extends JPanel {
                 MinecraftInstance moved = reordered.remove(sourceIndex);
                 destinationIndex = Math.clamp(destinationIndex, 0, reordered.size());
                 reordered.add(destinationIndex, moved);
-                InstanceSidebarPanel.this.listener.reorderRequested(reordered, moved.id());
+                InstanceSidebarPanel.this.launcherActions.reorderRequested(reordered, moved.id());
                 return true;
             }
         });
@@ -349,7 +350,7 @@ public final class InstanceSidebarPanel extends JPanel {
                 Rectangle bounds = index < 0 ? null : InstanceSidebarPanel.this.instanceList.getCellBounds(index, index);
                 if (bounds == null || !bounds.contains(event.getPoint())) return;
                 InstanceSidebarPanel.this.instanceList.setSelectedIndex(index);
-                InstanceSidebarPanel.this.listener.launchRequested();
+                InstanceSidebarPanel.this.launcherActions.launchRequested();
             }
         });
         this.add(new JScrollPane(this.instanceList), BorderLayout.CENTER);
@@ -377,7 +378,7 @@ public final class InstanceSidebarPanel extends JPanel {
                             .thenComparing(nameAscending);
                 };
                 sorted.sort(comparator);
-                this.listener.reorderRequested(List.copyOf(sorted), selectedId);
+                this.launcherActions.reorderRequested(List.copyOf(sorted), selectedId);
             });
             this.instanceSortMenu.add(sortItem);
         }
@@ -400,17 +401,17 @@ public final class InstanceSidebarPanel extends JPanel {
         this.instanceActionsMenu.add(this.deleteInstanceItem);
         this.emptyInstanceActionsMenu.add(this.addInstanceMenuItem);
 
-        this.addInstanceButton.addActionListener(event -> this.listener.addRequested());
-        this.addInstanceMenuItem.addActionListener(event -> this.listener.addRequested());
-        this.refreshInstancesButton.addActionListener(event -> this.listener.refreshRequested());
-        this.renameInstanceItem.addActionListener(event -> this.listener.renameRequested());
-        this.duplicateInstanceItem.addActionListener(event -> this.listener.duplicateRequested());
-        this.convertInstanceItem.addActionListener(event -> this.listener.convertRequested());
-        this.chooseInstanceIconItem.addActionListener(event -> this.listener.chooseIconRequested());
-        this.resetInstanceIconItem.addActionListener(event -> this.listener.resetIconRequested());
-        this.openInFilesItem.addActionListener(event -> this.listener.openFolderRequested());
-        this.exportInstanceItem.addActionListener(event -> this.listener.exportRequested());
-        this.deleteInstanceItem.addActionListener(event -> this.listener.deleteRequested());
+        this.addInstanceButton.addActionListener(event -> this.launcherActions.addRequested());
+        this.addInstanceMenuItem.addActionListener(event -> this.launcherActions.addRequested());
+        this.refreshInstancesButton.addActionListener(event -> this.launcherActions.refreshRequested());
+        this.renameInstanceItem.addActionListener(event -> this.launcherActions.renameRequested());
+        this.duplicateInstanceItem.addActionListener(event -> this.launcherActions.duplicateRequested());
+        this.convertInstanceItem.addActionListener(event -> this.launcherActions.convertRequested());
+        this.chooseInstanceIconItem.addActionListener(event -> this.launcherActions.chooseIconRequested());
+        this.resetInstanceIconItem.addActionListener(event -> this.launcherActions.resetIconRequested());
+        this.openInFilesItem.addActionListener(event -> this.launcherActions.openFolderRequested());
+        this.exportInstanceItem.addActionListener(event -> this.launcherActions.exportRequested());
+        this.deleteInstanceItem.addActionListener(event -> this.launcherActions.deleteRequested());
     }
 
     private void rebuildInstanceList(@Nullable String selectedId) {
@@ -436,38 +437,8 @@ public final class InstanceSidebarPanel extends JPanel {
         }
         if (selection == null && !this.instanceModel.isEmpty()) selection = this.instanceModel.getElementAt(0);
         this.instanceList.setSelectedValue(selection, true);
-        if (selection == null) this.listener.selectionChanged();
-        this.listener.sidebarStateChanged();
-    }
-
-    public interface Listener {
-        public void selectionChanged();
-
-        public void sidebarStateChanged();
-
-        public void addRequested();
-
-        public void refreshRequested();
-
-        public void reorderRequested(@NotNull List<MinecraftInstance> instances, @Nullable String selectedId);
-
-        public void launchRequested();
-
-        public void renameRequested();
-
-        public void duplicateRequested();
-
-        public void convertRequested();
-
-        public void chooseIconRequested();
-
-        public void resetIconRequested();
-
-        public void openFolderRequested();
-
-        public void exportRequested();
-
-        public void deleteRequested();
+        if (selection == null) this.launcherActions.selectionChanged();
+        this.launcherActions.sidebarStateChanged();
     }
 
     private enum InstanceSortMode {
