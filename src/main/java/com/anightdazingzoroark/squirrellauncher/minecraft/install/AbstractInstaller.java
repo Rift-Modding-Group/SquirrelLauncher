@@ -38,7 +38,7 @@ public abstract class AbstractInstaller {
      */
     @NotNull
     public final Path install(@NotNull String version) throws IOException, InterruptedException {
-        version = this.requireVersion(version, installationName());
+        version = this.requireVersion(version, this.installationName());
         Path installDirectory = this.installationDirectory(version);
         String displayName = this.installationName() + " " + version;
 

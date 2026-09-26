@@ -36,7 +36,7 @@ public final class CleanroomInstaller extends AbstractInstaller {
     @NotNull
     protected Optional<Path> verifyInstallation(@NotNull String version, @NotNull Path installDirectory) throws IOException, InterruptedException {
         Path packRoot = findMmcPackRoot(installDirectory);
-        if (packRoot == null) return Optional.empty();
+        if (packRoot == null || !this.isPackComplete(packRoot)) return Optional.empty();
 
         this.installLibraries(packRoot);
         return Optional.of(packRoot);
@@ -66,7 +66,7 @@ public final class CleanroomInstaller extends AbstractInstaller {
         }
 
         //---find the actual mmc package---
-        MmcAsset mmcAsset = this.downloadMmcAsset(release, installDir);
+        MMCAsset mmcAsset = this.downloadMMCAsset(release, installDir);
         Path archive = mmcAsset.archive();
         System.out.println("Using Cleanroom MMC package: " + mmcAsset.name());
 
@@ -87,6 +87,14 @@ public final class CleanroomInstaller extends AbstractInstaller {
     }
 
     //-----non abstract methods-----
+    @NotNull
+    public Path prepareMMCPack(@NotNull String version) throws IOException, InterruptedException {
+        version = this.requireVersion(version, this.installationName());
+        Path packRoot = this.findMmcPackRoot(this.installationDirectory(version));
+        if (packRoot != null && this.isPackComplete(packRoot)) return packRoot;
+        return this.install(version);
+    }
+
     private void extractZip(@NotNull Path archive, @NotNull Path destination) throws IOException {
         Path root = destination.toAbsolutePath().normalize();
 
@@ -108,6 +116,23 @@ public final class CleanroomInstaller extends AbstractInstaller {
                 Files.copy(zip, output, StandardCopyOption.REPLACE_EXISTING);
             }
         }
+    }
+
+    private boolean isPackComplete(@NotNull Path root) throws IOException {
+        JsonObject pack = InstallUtils.readJson(root.resolve("mmc-pack.json"));
+        if (!pack.has("components") || !pack.get("components").isJsonArray()) return false;
+
+        boolean foundComponent = false;
+        for (JsonElement element : pack.getAsJsonArray("components")) {
+            if (!element.isJsonObject()) return false;
+            JsonObject component = element.getAsJsonObject();
+            if (!component.has("uid")) return false;
+
+            foundComponent = true;
+            Path patch = root.resolve("patches").resolve(component.get("uid").getAsString() + ".json");
+            if (!Files.isRegularFile(patch)) return false;
+        }
+        return foundComponent;
     }
 
     private void installLibraries(@NotNull Path root) throws IOException, InterruptedException {
@@ -148,7 +173,7 @@ public final class CleanroomInstaller extends AbstractInstaller {
         }
     }
 
-    private MmcAsset downloadMmcAsset(@NotNull JsonObject release, @NotNull Path installDir) throws IOException, InterruptedException {
+    private MMCAsset downloadMMCAsset(@NotNull JsonObject release, @NotNull Path installDir) throws IOException, InterruptedException {
         JsonArray assets = release.getAsJsonArray("assets");
         List<String> availableAssets = new ArrayList<>();
 
@@ -169,7 +194,7 @@ public final class CleanroomInstaller extends AbstractInstaller {
             }
 
             Downloader.download(url, candidate);
-            if (this.zipContainsMmcPack(candidate)) return new MmcAsset(name, candidate);
+            if (this.zipContainsMmcPack(candidate)) return new MMCAsset(name, candidate);
 
             Files.deleteIfExists(candidate);
         }
@@ -194,5 +219,5 @@ public final class CleanroomInstaller extends AbstractInstaller {
         return false;
     }
 
-    private record MmcAsset(@NotNull String name, @NotNull Path archive) {}
+    private record MMCAsset(@NotNull String name, @NotNull Path archive) {}
 }

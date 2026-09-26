@@ -1,8 +1,10 @@
 package com.anightdazingzoroark.squirrellauncher.minecraft.modpack;
 
 import com.anightdazingzoroark.squirrellauncher.minecraft.MinecraftPaths;
+import com.anightdazingzoroark.squirrellauncher.minecraft.install.CleanroomInstaller;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceManager;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceIconManager;
+import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceType;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
 import org.jetbrains.annotations.NotNull;
 
@@ -112,13 +114,28 @@ public final class MMCPackManager {
         }
     }
 
-    public static void exportPack(@NotNull MinecraftInstance instance, @NotNull Path destination) throws IOException {
+    public static void exportPack(@NotNull MinecraftInstance instance, @NotNull Path destination) throws IOException, InterruptedException {
         if (!destination.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".zip")) {
             destination = destination.resolveSibling(destination.getFileName() + ".zip");
         }
-        InstanceManager.load(instance.id());
+        instance = InstanceManager.load(instance.id());
 
         Path instanceRoot = instance.directory().toAbsolutePath().normalize();
+        Path cleanroomMetadataRoot = null;
+        if (instance.type() == InstanceType.CLEANROOM) {
+            Path patches = instanceRoot.resolve("patches");
+            if (Files.isRegularFile(patches.resolve("net.minecraft.json"))
+                    && Files.isRegularFile(patches.resolve("net.minecraftforge.json"))
+                    && Files.isRegularFile(patches.resolve("org.lwjgl3.json"))) {
+                cleanroomMetadataRoot = instanceRoot;
+            }
+            else {
+                String loaderVersion = instance.loaderVersion();
+                if (loaderVersion == null) throw new IOException("Cleanroom instance has no loader version.");
+                cleanroomMetadataRoot = new CleanroomInstaller().prepareMMCPack(loaderVersion);
+            }
+        }
+
         Path outputFile = destination.toAbsolutePath().normalize();
         if (outputFile.startsWith(instanceRoot)) {
             throw new IOException("Choose an export location outside the instance directory.");
@@ -140,10 +157,23 @@ public final class MMCPackManager {
                             || relative.startsWith(".minecraft/crash-reports")) continue;
 
                     String entryName = relative.toString().replace('\\', '/');
-                    zip.putNextEntry(new ZipEntry(entryName));
-                    Files.copy(file, zip);
-                    zip.closeEntry();
+                    if (cleanroomMetadataRoot != null
+                            && (entryName.equals("mmc-pack.json") || entryName.startsWith("patches/"))) continue;
+
+                    MMCPackManager.addFile(zip, file, entryName);
                     archivedNames.add(entryName);
+                }
+
+                if (cleanroomMetadataRoot != null) {
+                    try (java.util.stream.Stream<Path> metadataPaths = Files.walk(cleanroomMetadataRoot)) {
+                        for (Path file : metadataPaths.filter(Files::isRegularFile).sorted().toList()) {
+                            String entryName = cleanroomMetadataRoot.relativize(file).toString().replace('\\', '/');
+                            if (!entryName.equals("mmc-pack.json") && !entryName.startsWith("patches/")) continue;
+                            if (!archivedNames.add(entryName)) continue;
+
+                            MMCPackManager.addFile(zip, file, entryName);
+                        }
+                    }
                 }
 
                 Path icon = InstanceIconManager.customIcon(instance);
@@ -153,9 +183,7 @@ public final class MMCPackManager {
                     extension = separator < 0 ? ".png" : extension.substring(separator);
                     String entryName = instance.iconKey() + extension;
                     if (archivedNames.add(entryName)) {
-                        zip.putNextEntry(new ZipEntry(entryName));
-                        Files.copy(icon, zip);
-                        zip.closeEntry();
+                        MMCPackManager.addFile(zip, icon, entryName);
                     }
                 }
             }
@@ -171,5 +199,11 @@ public final class MMCPackManager {
             if (!moved) Files.deleteIfExists(temporary);
         }
         System.out.println("Exported MMC instance: " + outputFile);
+    }
+
+    private static void addFile(@NotNull ZipOutputStream zip, @NotNull Path file, @NotNull String entryName) throws IOException {
+        zip.putNextEntry(new ZipEntry(entryName));
+        Files.copy(file, zip);
+        zip.closeEntry();
     }
 }
