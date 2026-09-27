@@ -6,6 +6,8 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import javax.swing.event.HyperlinkEvent;
+import javax.swing.text.DefaultCaret;
+import javax.swing.text.Position;
 import java.awt.*;
 import java.net.URI;
 
@@ -23,6 +25,19 @@ public final class AboutSettingsTab extends AbstractSettingsTab {
 
         JEditorPane description = new JEditorPane("text/html", Localization.text("about.description"));
         description.setEditable(false);
+        description.setFocusable(false);
+        description.setHighlighter(null);
+        description.setCaret(new DefaultCaret() {
+            @Override
+            public void moveDot(int dot) {
+                this.setDot(dot);
+            }
+
+            @Override
+            public void moveDot(int dot, @NotNull Position.Bias bias) {
+                this.setDot(dot, bias);
+            }
+        });
         description.setOpaque(false);
         description.addHyperlinkListener(event -> {
             if (event.getEventType() != HyperlinkEvent.EventType.ACTIVATED) return;

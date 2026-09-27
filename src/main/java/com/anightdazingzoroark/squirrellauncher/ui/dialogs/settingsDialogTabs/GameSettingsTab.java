@@ -63,7 +63,11 @@ public final class GameSettingsTab extends AbstractSettingsTab {
         this.allocatedMemorySlider.setPaintTicks(true);
         this.allocatedMemorySlider.setPaintLabels(true);
         this.allocatedMemorySlider.setSnapToTicks(true);
-        this.allocatedMemorySlider.setPreferredSize(new Dimension(420, 52));
+        this.allocatedMemorySlider.setPreferredSize(new Dimension(520, 64));
+        this.allocatedMemoryValueLabel.setFont(
+                this.allocatedMemoryValueLabel.getFont().deriveFont(Font.BOLD, 16f)
+        );
+        this.allocatedMemoryValueLabel.setHorizontalAlignment(SwingConstants.CENTER);
         this.allocatedMemoryValueLabel.setText(
                 Localization.text("settings.game.memory_value", this.allocatedMemorySlider.getValue())
         );
@@ -78,73 +82,81 @@ public final class GameSettingsTab extends AbstractSettingsTab {
         title.insets = new Insets(0, 0, 16, 0);
         form.add(this.createHeader(), title);
 
+        JPanel windowPanel = new JPanel(new GridBagLayout());
+        windowPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createTitledBorder(Localization.text("settings.game.window")),
+                BorderFactory.createEmptyBorder(4, 10, 8, 10)
+        ));
+
         GridBagConstraints fullscreen = new GridBagConstraints();
         fullscreen.gridx = 0;
-        fullscreen.gridy = 1;
+        fullscreen.gridy = 0;
         fullscreen.gridwidth = 2;
         fullscreen.anchor = GridBagConstraints.LINE_START;
         fullscreen.insets = new Insets(0, 0, 14, 0);
-        form.add(this.fullscreenCheckBox, fullscreen);
+        windowPanel.add(this.fullscreenCheckBox, fullscreen);
 
         GridBagConstraints widthLabel = new GridBagConstraints();
         widthLabel.gridx = 0;
-        widthLabel.gridy = 2;
+        widthLabel.gridy = 1;
         widthLabel.anchor = GridBagConstraints.LINE_START;
         widthLabel.insets = new Insets(5, 0, 5, 14);
-        form.add(new JLabel(Localization.text("settings.game.width")), widthLabel);
+        windowPanel.add(new JLabel(Localization.text("settings.game.width")), widthLabel);
 
         GridBagConstraints width = new GridBagConstraints();
         width.gridx = 1;
-        width.gridy = 2;
+        width.gridy = 1;
         width.weightx = 1;
         width.anchor = GridBagConstraints.LINE_START;
         width.insets = new Insets(5, 0, 5, 0);
         this.windowWidthSpinner.setPreferredSize(new Dimension(110, 28));
-        form.add(this.windowWidthSpinner, width);
+        windowPanel.add(this.windowWidthSpinner, width);
 
         GridBagConstraints heightLabel = new GridBagConstraints();
         heightLabel.gridx = 0;
-        heightLabel.gridy = 3;
+        heightLabel.gridy = 2;
         heightLabel.anchor = GridBagConstraints.LINE_START;
         heightLabel.insets = new Insets(5, 0, 5, 14);
-        form.add(new JLabel(Localization.text("settings.game.height")), heightLabel);
+        windowPanel.add(new JLabel(Localization.text("settings.game.height")), heightLabel);
 
         GridBagConstraints height = new GridBagConstraints();
         height.gridx = 1;
-        height.gridy = 3;
+        height.gridy = 2;
         height.weightx = 1;
         height.anchor = GridBagConstraints.LINE_START;
         height.insets = new Insets(5, 0, 5, 0);
         this.windowHeightSpinner.setPreferredSize(new Dimension(110, 28));
-        form.add(this.windowHeightSpinner, height);
+        windowPanel.add(this.windowHeightSpinner, height);
 
-        GridBagConstraints memoryLabel = new GridBagConstraints();
-        memoryLabel.gridx = 0;
-        memoryLabel.gridy = 4;
-        memoryLabel.anchor = GridBagConstraints.LINE_START;
-        memoryLabel.insets = new Insets(16, 0, 5, 14);
-        form.add(new JLabel(Localization.text("settings.game.memory")), memoryLabel);
+        GridBagConstraints window = new GridBagConstraints();
+        window.gridx = 0;
+        window.gridy = 1;
+        window.gridwidth = 2;
+        window.weightx = 1;
+        window.fill = GridBagConstraints.HORIZONTAL;
+        window.insets = new Insets(0, 0, 16, 0);
+        form.add(windowPanel, window);
 
-        GridBagConstraints memoryValue = new GridBagConstraints();
-        memoryValue.gridx = 1;
-        memoryValue.gridy = 4;
-        memoryValue.weightx = 1;
-        memoryValue.anchor = GridBagConstraints.LINE_START;
-        memoryValue.insets = new Insets(16, 0, 5, 0);
-        form.add(this.allocatedMemoryValueLabel, memoryValue);
+        JPanel memoryPanel = new JPanel(new BorderLayout(0, 6));
+        memoryPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createTitledBorder(Localization.text("settings.game.memory")),
+                BorderFactory.createEmptyBorder(4, 10, 8, 10)
+        ));
+        memoryPanel.add(this.allocatedMemoryValueLabel, BorderLayout.NORTH);
+        memoryPanel.add(this.allocatedMemorySlider, BorderLayout.CENTER);
 
         GridBagConstraints memory = new GridBagConstraints();
         memory.gridx = 0;
-        memory.gridy = 5;
+        memory.gridy = 2;
         memory.gridwidth = 2;
         memory.weightx = 1;
         memory.fill = GridBagConstraints.HORIZONTAL;
-        memory.insets = new Insets(0, 0, 5, 0);
-        form.add(this.allocatedMemorySlider, memory);
+        memory.insets = new Insets(0, 0, 16, 0);
+        form.add(memoryPanel, memory);
 
         GridBagConstraints filler = new GridBagConstraints();
         filler.gridx = 0;
-        filler.gridy = 6;
+        filler.gridy = 3;
         filler.gridwidth = 2;
         filler.weighty = 1;
         filler.fill = GridBagConstraints.VERTICAL;

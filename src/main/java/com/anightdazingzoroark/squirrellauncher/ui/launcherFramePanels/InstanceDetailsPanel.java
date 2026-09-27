@@ -13,6 +13,7 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.BorderFactory;
 import javax.swing.Icon;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
@@ -189,21 +190,29 @@ public final class InstanceDetailsPanel extends JPanel {
         this.instanceIconEditorPanel.setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
         this.instanceTypeEditorPanel.setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
         this.loaderVersionEditorPanel.setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
-        this.instanceNameEditorPanel.setToolTipText(Localization.text("main.tooltip.rename_instance"));
-        this.instanceIconEditorPanel.setToolTipText(Localization.text("main.tooltip.manage_instance_icon"));
-        this.instanceTypeEditorPanel.setToolTipText(Localization.text("main.tooltip.convert_instance"));
-        this.loaderVersionEditorPanel.setToolTipText(Localization.text("main.tooltip.change_loader_version"));
-        this.instanceNameEditorPanel.getAccessibleContext().setAccessibleName(
-                Localization.text("main.tooltip.rename_instance")
+        this.configureEditorTooltip(
+                this.instanceNameEditorPanel,
+                "main.tooltip.rename_instance",
+                this.instanceNameLabel,
+                this.instanceNamePencilLabel
         );
-        this.instanceIconEditorPanel.getAccessibleContext().setAccessibleName(
-                Localization.text("main.tooltip.manage_instance_icon")
+        this.configureEditorTooltip(
+                this.instanceIconEditorPanel,
+                "main.tooltip.manage_instance_icon",
+                this.instanceIconLabel,
+                this.instanceIconPencilLabel
         );
-        this.instanceTypeEditorPanel.getAccessibleContext().setAccessibleName(
-                Localization.text("main.tooltip.convert_instance")
+        this.configureEditorTooltip(
+                this.instanceTypeEditorPanel,
+                "main.tooltip.convert_instance",
+                this.instanceTypeLabel,
+                this.instanceTypePencilLabel
         );
-        this.loaderVersionEditorPanel.getAccessibleContext().setAccessibleName(
-                Localization.text("main.tooltip.change_loader_version")
+        this.configureEditorTooltip(
+                this.loaderVersionEditorPanel,
+                "main.tooltip.change_loader_version",
+                this.loaderVersionLabel,
+                this.loaderVersionPencilLabel
         );
         this.instanceNameEditorPanel.add(this.instanceNameLabel, BorderLayout.CENTER);
         this.instanceNameEditorPanel.add(this.instanceNamePencilLabel, BorderLayout.EAST);
@@ -290,6 +299,19 @@ public final class InstanceDetailsPanel extends JPanel {
                 DetailsIcon.PENCIL.getIconWidth(),
                 DetailsIcon.PENCIL.getIconHeight()
         ));
+    }
+
+    private void configureEditorTooltip(
+            @NotNull JPanel editorPanel,
+            @NotNull String localizationKey,
+            @NotNull JComponent... interactiveComponents
+    ) {
+        String tooltip = Localization.text(localizationKey);
+        editorPanel.setToolTipText(tooltip);
+        editorPanel.getAccessibleContext().setAccessibleName(tooltip);
+        for (JComponent interactiveComponent : interactiveComponents) {
+            interactiveComponent.setToolTipText(tooltip);
+        }
     }
 
     private void setModsTabVisible(boolean visible) {

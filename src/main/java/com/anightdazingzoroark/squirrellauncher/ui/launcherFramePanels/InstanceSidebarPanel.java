@@ -39,19 +39,24 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Transferable;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionAdapter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
 public final class InstanceSidebarPanel extends JPanel {
-    private static final int INSTANCE_GEAR_WIDTH = 36;
+    private static final int INSTANCE_GEAR_SIZE = 32;
+    private static final int INSTANCE_GEAR_RIGHT_INSET = 8;
     private static final int INSTANCE_SIDEBAR_WIDTH = 400;
     @NotNull
     private static final String INSTANCE_HEADER_CARD = "header";
@@ -65,7 +70,15 @@ public final class InstanceSidebarPanel extends JPanel {
     @NotNull
     private final DefaultListModel<MinecraftInstance> instanceModel = new DefaultListModel<>();
     @NotNull
-    private final JList<MinecraftInstance> instanceList = new JList<>(this.instanceModel);
+    private final JList<MinecraftInstance> instanceList = new JList<>(this.instanceModel) {
+        @Override
+        @Nullable
+        public String getToolTipText(@NotNull MouseEvent event) {
+            return InstanceSidebarPanel.this.gearIndexAt(event.getPoint()) >= 0
+                    ? Localization.text("main.tooltip.instance_options")
+                    : null;
+        }
+    };
     @NotNull
     private final JButton addInstanceButton = new JButton(Localization.text("main.button.add_instance"));
     @NotNull
@@ -97,6 +110,8 @@ public final class InstanceSidebarPanel extends JPanel {
     @NotNull
     private final JMenuItem duplicateInstanceItem = new JMenuItem(Localization.text("main.menu.duplicate"));
     @NotNull
+    private final JMenuItem changeLoaderVersionItem = new JMenuItem(Localization.text("main.menu.change_version"));
+    @NotNull
     private final JMenuItem convertInstanceItem = new JMenuItem(Localization.text("main.menu.convert"));
     @NotNull
     private final JMenu instanceIconMenu = new JMenu(Localization.text("main.menu.icon"));
@@ -115,6 +130,7 @@ public final class InstanceSidebarPanel extends JPanel {
     @NotNull
     private final JMenuItem deleteInstanceItem = new JMenuItem(Localization.text("main.menu.delete"));
     private boolean busy;
+    private int hoveredGearIndex = -1;
 
     public InstanceSidebarPanel(@NotNull LauncherActions launcherActions) {
         super(new BorderLayout(0, 8));
@@ -191,6 +207,10 @@ public final class InstanceSidebarPanel extends JPanel {
         this.closeInstanceSearchButton.setEnabled(available);
         this.renameInstanceItem.setEnabled(canRenameInstance);
         this.duplicateInstanceItem.setEnabled(available && instance != null && !instanceRunning);
+        this.changeLoaderVersionItem.setVisible(instance != null && instance.type().hasMods);
+        this.changeLoaderVersionItem.setEnabled(
+                available && instance != null && instance.type().hasMods && !instanceRunning
+        );
         this.convertInstanceItem.setEnabled(available && instance != null && !instanceRunning);
         this.instanceIconMenu.setEnabled(canManageInstanceIcon);
         this.chooseInstanceIconItem.setEnabled(canManageInstanceIcon);
@@ -268,6 +288,7 @@ public final class InstanceSidebarPanel extends JPanel {
     private void configureInstanceList() {
         this.instanceList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         this.instanceList.setCellRenderer(new InstanceCellRenderer());
+        this.instanceList.setToolTipText(Localization.text("main.tooltip.instance_options"));
         this.instanceList.setDragEnabled(true);
         this.instanceList.setDropMode(DropMode.INSERT);
         this.instanceList.addListSelectionListener(event -> {
@@ -338,7 +359,7 @@ public final class InstanceSidebarPanel extends JPanel {
                 }
                 if (bounds == null || !bounds.contains(event.getPoint())) return;
                 boolean gearClick = SwingUtilities.isLeftMouseButton(event)
-                        && event.getX() >= bounds.x + bounds.width - INSTANCE_GEAR_WIDTH;
+                        && InstanceSidebarPanel.this.gearIndexAt(event.getPoint()) == index;
                 if ((!SwingUtilities.isRightMouseButton(event) && !gearClick) || InstanceSidebarPanel.this.busy) return;
 
                 InstanceSidebarPanel.this.instanceList.setSelectedIndex(index);
@@ -360,8 +381,44 @@ public final class InstanceSidebarPanel extends JPanel {
                 InstanceSidebarPanel.this.instanceList.setSelectedIndex(index);
                 InstanceSidebarPanel.this.launcherActions.launchRequested();
             }
+
+            @Override
+            public void mouseExited(@NotNull MouseEvent event) {
+                InstanceSidebarPanel.this.setHoveredGearIndex(-1);
+            }
+        });
+        this.instanceList.addMouseMotionListener(new MouseMotionAdapter() {
+            @Override
+            public void mouseMoved(@NotNull MouseEvent event) {
+                InstanceSidebarPanel.this.setHoveredGearIndex(
+                        InstanceSidebarPanel.this.gearIndexAt(event.getPoint())
+                );
+            }
         });
         this.add(new JScrollPane(this.instanceList), BorderLayout.CENTER);
+    }
+
+    private int gearIndexAt(@NotNull Point point) {
+        int index = this.instanceList.locationToIndex(point);
+        Rectangle bounds = index < 0 ? null : this.instanceList.getCellBounds(index, index);
+        int gearTop = bounds == null ? 0 : bounds.y + (bounds.height - INSTANCE_GEAR_SIZE) / 2;
+        int gearLeft = bounds == null
+                ? 0
+                : bounds.x + bounds.width - INSTANCE_GEAR_RIGHT_INSET - INSTANCE_GEAR_SIZE;
+        return bounds != null
+                && bounds.contains(point)
+                && point.x >= gearLeft
+                && point.x < gearLeft + INSTANCE_GEAR_SIZE
+                && point.y >= gearTop
+                && point.y < gearTop + INSTANCE_GEAR_SIZE
+                ? index
+                : -1;
+    }
+
+    private void setHoveredGearIndex(int index) {
+        if (this.hoveredGearIndex == index) return;
+        this.hoveredGearIndex = index;
+        this.instanceList.repaint();
     }
 
     private void configureMenus() {
@@ -398,6 +455,7 @@ public final class InstanceSidebarPanel extends JPanel {
 
         this.instanceActionsMenu.add(this.renameInstanceItem);
         this.instanceActionsMenu.add(this.duplicateInstanceItem);
+        this.instanceActionsMenu.add(this.changeLoaderVersionItem);
         this.instanceActionsMenu.add(this.convertInstanceItem);
         this.instanceIconMenu.add(this.chooseInstanceIconItem);
         this.instanceIconMenu.add(this.resetInstanceIconItem);
@@ -416,6 +474,7 @@ public final class InstanceSidebarPanel extends JPanel {
         this.refreshInstancesButton.addActionListener(event -> this.launcherActions.refreshRequested());
         this.renameInstanceItem.addActionListener(event -> this.launcherActions.renameRequested());
         this.duplicateInstanceItem.addActionListener(event -> this.launcherActions.duplicateRequested());
+        this.changeLoaderVersionItem.addActionListener(event -> this.launcherActions.changeLoaderVersionRequested());
         this.convertInstanceItem.addActionListener(event -> this.launcherActions.convertRequested());
         this.chooseInstanceIconItem.addActionListener(event -> this.launcherActions.chooseIconRequested());
         this.resetInstanceIconItem.addActionListener(event -> this.launcherActions.resetIconRequested());
@@ -471,7 +530,8 @@ public final class InstanceSidebarPanel extends JPanel {
     private enum SidebarIcon implements Icon {
         SEARCH,
         SORT,
-        CLOSE;
+        CLOSE,
+        GEAR;
 
         private static final int ICON_SIZE = 16;
 
@@ -504,6 +564,14 @@ public final class InstanceSidebarPanel extends JPanel {
                         drawing.drawLine(3, 3, 13, 13);
                         drawing.drawLine(13, 3, 3, 13);
                     }
+                    case GEAR -> {
+                        for (int tooth = 0; tooth < 8; tooth++) {
+                            drawing.drawLine(8, 0, 8, 3);
+                            drawing.rotate(Math.PI / 4, 8, 8);
+                        }
+                        drawing.drawOval(3, 3, 10, 10);
+                        drawing.drawOval(6, 6, 4, 4);
+                    }
                 }
             }
             finally {
@@ -522,26 +590,33 @@ public final class InstanceSidebarPanel extends JPanel {
         }
     }
 
-    private static final class InstanceCellRenderer extends JPanel implements ListCellRenderer<MinecraftInstance> {
+    private final class InstanceCellRenderer extends JPanel implements ListCellRenderer<MinecraftInstance> {
         @NotNull
         private final JLabel iconLabel = new JLabel();
         @NotNull
         private final JLabel textLabel = new JLabel();
         @NotNull
-        private final JLabel gearLabel = new JLabel("⚙", JLabel.CENTER);
+        private final JButton gearButton = new JButton(SidebarIcon.GEAR);
+        @NotNull
+        private final JPanel gearButtonPanel = new JPanel(new GridBagLayout());
 
         private InstanceCellRenderer() {
             super(new BorderLayout(10, 0));
             this.setOpaque(true);
             this.iconLabel.setOpaque(false);
             this.textLabel.setOpaque(false);
-            this.gearLabel.setOpaque(false);
-            this.gearLabel.setFont(this.gearLabel.getFont().deriveFont(18f));
-            this.gearLabel.setPreferredSize(new Dimension(INSTANCE_GEAR_WIDTH, 32));
-            this.gearLabel.setToolTipText(Localization.text("main.tooltip.instance_options"));
+            this.gearButton.setPreferredSize(new Dimension(INSTANCE_GEAR_SIZE, INSTANCE_GEAR_SIZE));
+            this.gearButton.setMinimumSize(new Dimension(INSTANCE_GEAR_SIZE, INSTANCE_GEAR_SIZE));
+            this.gearButton.setMaximumSize(new Dimension(INSTANCE_GEAR_SIZE, INSTANCE_GEAR_SIZE));
+            this.gearButton.setMargin(new Insets(0, 0, 0, 0));
+            this.gearButton.setFocusable(false);
+            this.gearButton.setRequestFocusEnabled(false);
+            this.gearButton.setRolloverEnabled(true);
+            this.gearButtonPanel.setOpaque(false);
+            this.gearButtonPanel.add(this.gearButton);
             this.add(this.iconLabel, BorderLayout.WEST);
             this.add(this.textLabel, BorderLayout.CENTER);
-            this.add(this.gearLabel, BorderLayout.EAST);
+            this.add(this.gearButtonPanel, BorderLayout.EAST);
         }
 
         @Override
@@ -563,8 +638,12 @@ public final class InstanceSidebarPanel extends JPanel {
             this.iconLabel.setIcon(InstanceIconProvider.INSTANCE.iconFor(instance));
             this.setBackground(selected ? list.getSelectionBackground() : list.getBackground());
             this.textLabel.setForeground(selected ? list.getSelectionForeground() : list.getForeground());
-            this.gearLabel.setForeground(selected ? list.getSelectionForeground() : list.getForeground());
-            this.setBorder(BorderFactory.createEmptyBorder(6, 7, 6, 0));
+            boolean gearHovered = index == InstanceSidebarPanel.this.hoveredGearIndex && list.isEnabled();
+            this.gearButton.setEnabled(list.isEnabled());
+            this.gearButton.getModel().setArmed(false);
+            this.gearButton.getModel().setPressed(false);
+            this.gearButton.getModel().setRollover(gearHovered);
+            this.setBorder(BorderFactory.createEmptyBorder(6, 7, 6, INSTANCE_GEAR_RIGHT_INSET));
             return this;
         }
     }
