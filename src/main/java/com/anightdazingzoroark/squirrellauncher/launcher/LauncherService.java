@@ -5,15 +5,20 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.auth.AccountManager;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MicrosoftAuthenticator;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MinecraftAccount;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceManager;
+import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceLaunchSettings;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceIconManager;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceType;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ManagedMod;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModManager;
 import com.anightdazingzoroark.squirrellauncher.minecraft.modpack.MMCPackManager;
+import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntime;
+import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntimeManager;
+import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaVersion;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.lang.management.ManagementFactory;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -21,7 +26,9 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -79,6 +86,45 @@ public final class LauncherService implements AutoCloseable {
 
     public void updateSettings(@NotNull LauncherSettings settings) throws Exception {
         this.settingsManager.update(settings);
+    }
+
+    @Nullable
+    public LowMemoryWarning lowMemoryWarning(@NotNull MinecraftInstance instance) {
+        InstanceLaunchSettings instanceSettings = instance.launchSettings();
+        LauncherSettings launcherSettings = this.settingsManager.settings();
+        boolean warningEnabled = instanceSettings.overrideMemory()
+                ? instanceSettings.lowMemoryWarning()
+                : launcherSettings.lowMemoryWarning();
+        if (!warningEnabled) return null;
+
+        java.lang.management.OperatingSystemMXBean operatingSystem = ManagementFactory.getOperatingSystemMXBean();
+        if (!(operatingSystem instanceof com.sun.management.OperatingSystemMXBean memoryOperatingSystem)) {
+            return null;
+        }
+        long availableMemoryMiB = memoryOperatingSystem.getFreeMemorySize() / (1024L * 1024L);
+        long totalMemoryMiB = memoryOperatingSystem.getTotalMemorySize() / (1024L * 1024L);
+        Path linuxMemoryInformation = Path.of("/proc/meminfo");
+        if (Files.isRegularFile(linuxMemoryInformation)) {
+            try {
+                for (String line : Files.readAllLines(linuxMemoryInformation)) {
+                    String[] parts = line.trim().split("\\s+");
+                    if (parts.length < 2) continue;
+                    if (parts[0].equals("MemAvailable:")) {
+                        availableMemoryMiB = Long.parseLong(parts[1]) / 1024L;
+                    }
+                    else if (parts[0].equals("MemTotal:")) {
+                        totalMemoryMiB = Long.parseLong(parts[1]) / 1024L;
+                    }
+                }
+            }
+            catch (Exception ignored) {}
+        }
+        if (availableMemoryMiB <= 0L) return null;
+        int allocatedMemoryMiB = (instanceSettings.overrideMemory()
+                ? instanceSettings.allocatedMemoryGigabytes()
+                : launcherSettings.allocatedMemoryGigabytes()) * 1024;
+        if ((long) allocatedMemoryMiB * 7L <= availableMemoryMiB * 10L) return null;
+        return new LowMemoryWarning(allocatedMemoryMiB, availableMemoryMiB, totalMemoryMiB);
     }
 
     //---instance stuff---
@@ -181,6 +227,56 @@ public final class LauncherService implements AutoCloseable {
         finally {
             if (!moved && Files.exists(staging)) this.deleteDirectory(staging);
         }
+    }
+
+    @NotNull
+    public MinecraftInstance updateInstanceLaunchSettings(
+            @NotNull String instanceId,
+            @NotNull InstanceLaunchSettings settings
+    ) throws Exception {
+        MinecraftInstance instance = InstanceManager.load(instanceId);
+        InstanceLaunchSettings validatedSettings = settings;
+        if (settings.javaExecutable() != null) {
+            JavaVersion requiredVersion = instance.type() == InstanceType.CLEANROOM
+                    ? JavaVersion.JAVA_25
+                    : JavaVersion.JAVA_8;
+            JavaRuntime runtime = JavaRuntimeManager.resolve(requiredVersion, settings.javaExecutable());
+            validatedSettings = new InstanceLaunchSettings(
+                    runtime.executable(),
+                    settings.overrideWindowSettings(),
+                    settings.fullscreen(),
+                    settings.windowWidth(),
+                    settings.windowHeight(),
+                    settings.overrideMemory(),
+                    settings.allocatedMemoryGigabytes(),
+                    settings.lowMemoryWarning()
+            );
+        }
+        Map<String, String> values = new LinkedHashMap<>();
+        values.put("OverrideJavaLocation", Boolean.toString(validatedSettings.javaExecutable() != null));
+        values.put(
+                "JavaPath",
+                validatedSettings.javaExecutable() == null ? null : validatedSettings.javaExecutable().toString()
+        );
+        values.put("OverrideWindow", Boolean.toString(validatedSettings.overrideWindowSettings()));
+        values.put("LaunchMaximized", Boolean.toString(validatedSettings.fullscreen()));
+        values.put("SquirrelLauncherFullscreen", Boolean.toString(validatedSettings.fullscreen()));
+        values.put("MinecraftWinWidth", Integer.toString(validatedSettings.windowWidth()));
+        values.put("MinecraftWinHeight", Integer.toString(validatedSettings.windowHeight()));
+        values.put("OverrideMemory", Boolean.toString(validatedSettings.overrideMemory()));
+        values.put("MinMemAlloc", "512");
+        values.put("MaxMemAlloc", Integer.toString(validatedSettings.allocatedMemoryGigabytes() * 1024));
+        values.put("LowMemWarning", Boolean.toString(validatedSettings.lowMemoryWarning()));
+        InstanceManager.setConfigValues(instance.directory(), values);
+        return InstanceManager.load(instanceId);
+    }
+
+    @NotNull
+    public MinecraftInstance updateInstanceNotes(@NotNull String instanceId, @NotNull String notes)
+            throws Exception {
+        MinecraftInstance instance = InstanceManager.load(instanceId);
+        InstanceManager.setConfigValue(instance.directory(), "notes", notes);
+        return InstanceManager.load(instanceId);
     }
 
     @NotNull
@@ -340,11 +436,14 @@ public final class LauncherService implements AutoCloseable {
     @NotNull
     public Process launch(@NotNull MinecraftInstance instance) throws Exception {
         MinecraftAccount account = this.accountManager.prepareSelectedAccount();
-        return instance.type().launch(account, instance, this.settingsManager.settings());
+        MinecraftInstance storedInstance = InstanceManager.load(instance.id());
+        return storedInstance.type().launch(account, storedInstance, this.settingsManager.settings());
     }
 
     @Override
     public void close() {
         this.outputBridge.close();
     }
+
+    public record LowMemoryWarning(int allocatedMemoryMiB, long availableMemoryMiB, long totalMemoryMiB) {}
 }

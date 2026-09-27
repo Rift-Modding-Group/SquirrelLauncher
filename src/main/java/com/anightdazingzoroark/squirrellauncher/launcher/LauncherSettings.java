@@ -10,6 +10,7 @@ public record LauncherSettings(
         int windowWidth,
         int windowHeight,
         int allocatedMemoryGigabytes,
+        boolean lowMemoryWarning,
         @NotNull LauncherLanguage language
 ) {
     public static final int MINIMUM_ALLOCATED_MEMORY_GIGABYTES = 1;
@@ -59,6 +60,7 @@ public record LauncherSettings(
                 854,
                 480,
                 LauncherSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES,
+                true,
                 LauncherLanguage.systemDefault()
         );
     }

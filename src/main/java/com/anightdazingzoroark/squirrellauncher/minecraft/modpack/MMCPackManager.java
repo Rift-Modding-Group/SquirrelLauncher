@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
@@ -36,7 +38,9 @@ public final class MMCPackManager {
             @NotNull String instanceId,
             @NotNull String instanceName
     ) throws IOException {
-        if (!Files.isRegularFile(packFile)) throw new IOException("MMC instance archive does not exist: " + packFile);
+        if (!Files.isRegularFile(packFile)) {
+            throw new InvalidMMCPackException("MMC instance archive does not exist: " + packFile);
+        }
         if (Files.exists(MinecraftPaths.INSTANCES.resolve(instanceId))) {
             throw new IOException("Instance already exists: " + instanceId);
         }
@@ -53,7 +57,7 @@ public final class MMCPackManager {
                     String entryName = entry.getName().replace('\\', '/');
                     while (entryName.startsWith("./")) entryName = entryName.substring(2);
                     if (entries.put(entryName, entry) != null) {
-                        throw new IOException("Archive contains duplicate entry: " + entryName);
+                        throw new InvalidMMCPackException("Archive contains duplicate entry: " + entryName);
                     }
                 }
 
@@ -66,9 +70,13 @@ public final class MMCPackManager {
                     if (entries.containsKey(root + "mmc-pack.json")) roots.add(root);
                 }
                 if (roots.isEmpty()) {
-                    throw new IOException("Archive is not an MMC instance: instance.cfg and mmc-pack.json were not found together.");
+                    throw new InvalidMMCPackException(
+                            "Archive is not an MMC instance: instance.cfg and mmc-pack.json were not found together."
+                    );
                 }
-                if (roots.size() > 1) throw new IOException("Archive contains more than one MMC instance.");
+                if (roots.size() > 1) {
+                    throw new InvalidMMCPackException("Archive contains more than one MMC instance.");
+                }
 
                 String archiveRoot = roots.getFirst();
                 for (Map.Entry<String, ZipEntry> archived : entries.entrySet()) {
@@ -78,7 +86,9 @@ public final class MMCPackManager {
                     if (relativeName.isEmpty()) continue;
 
                     Path destination = staging.resolve(relativeName).normalize();
-                    if (!destination.startsWith(staging)) throw new IOException("Illegal ZIP entry: " + entryName);
+                    if (!destination.startsWith(staging)) {
+                        throw new InvalidMMCPackException("Illegal ZIP entry: " + entryName);
+                    }
                     if (archived.getValue().isDirectory()) {
                         Files.createDirectories(destination);
                         continue;
@@ -90,9 +100,17 @@ public final class MMCPackManager {
                     }
                 }
             }
+            catch (ZipException | InvalidPathException exception) {
+                throw new InvalidMMCPackException("The selected file is not a valid ZIP archive.", exception);
+            }
 
-            InstanceManager.setName(staging, instanceName);
-            InstanceManager.loadFromDirectory(instanceId, staging);
+            try {
+                InstanceManager.setName(staging, instanceName);
+                InstanceManager.loadFromDirectory(instanceId, staging);
+            }
+            catch (IOException | RuntimeException exception) {
+                throw new InvalidMMCPackException("The archive is not a supported MMC instance.", exception);
+            }
             Path destination = MinecraftPaths.INSTANCES.resolve(instanceId);
             try {
                 Files.move(staging, destination, StandardCopyOption.ATOMIC_MOVE);

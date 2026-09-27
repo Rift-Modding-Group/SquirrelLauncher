@@ -6,6 +6,7 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MinecraftAccount;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceType;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModState;
+import com.anightdazingzoroark.squirrellauncher.minecraft.modpack.InvalidMMCPackException;
 import com.anightdazingzoroark.squirrellauncher.ui.dialogs.SettingsDialog;
 import com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels.InstanceDetailsPanel;
 import com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels.InstanceSidebarPanel;
@@ -372,9 +373,22 @@ public final class LauncherFrame extends JFrame {
                         }
                     }
                     else {
-                        LauncherFrame.this.showError(
-                                Localization.text("main.error.operation_failed"), exception.getCause(), activityInstanceId
-                        );
+                        Throwable failure = exception.getCause();
+                        if (failure instanceof InvalidMMCPackException) {
+                            String title = Localization.text("main.dialog.invalid_instance_import");
+                            LauncherFrame.this.setStatus(title + ".");
+                            JOptionPane.showMessageDialog(
+                                    LauncherFrame.this,
+                                    Localization.text("main.error.invalid_instance_import"),
+                                    title,
+                                    JOptionPane.ERROR_MESSAGE
+                            );
+                        }
+                        else {
+                            LauncherFrame.this.showError(
+                                    Localization.text("main.error.operation_failed"), failure, activityInstanceId
+                            );
+                        }
                     }
                 }
                 catch (RuntimeException exception) {

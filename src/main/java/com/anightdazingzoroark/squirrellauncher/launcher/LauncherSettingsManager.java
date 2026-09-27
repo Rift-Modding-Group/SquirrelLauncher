@@ -42,6 +42,7 @@ public final class LauncherSettingsManager {
                     root.has("windowWidth") ? root.get("windowWidth").getAsInt() : 854,
                     root.has("windowHeight") ? root.get("windowHeight").getAsInt() : 480,
                     allocatedMemoryGigabytes,
+                    !root.has("lowMemoryWarning") || root.get("lowMemoryWarning").getAsBoolean(),
                     root.has("language")
                             ? LauncherLanguage.fromCode(root.get("language").getAsString())
                             : LauncherLanguage.systemDefault()
@@ -67,6 +68,7 @@ public final class LauncherSettingsManager {
         root.addProperty("windowWidth", settings.windowWidth());
         root.addProperty("windowHeight", settings.windowHeight());
         root.addProperty("allocatedMemoryGigabytes", settings.allocatedMemoryGigabytes());
+        root.addProperty("lowMemoryWarning", settings.lowMemoryWarning());
         root.addProperty("language", settings.language().code());
 
         Path settingsFile = MinecraftPaths.SETTINGS;

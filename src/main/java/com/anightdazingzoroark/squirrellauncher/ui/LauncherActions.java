@@ -4,6 +4,7 @@ import com.anightdazingzoroark.squirrellauncher.launcher.InstanceAdditionRequest
 import com.anightdazingzoroark.squirrellauncher.launcher.InstanceNames;
 import com.anightdazingzoroark.squirrellauncher.launcher.LauncherService;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MinecraftAccount;
+import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceLaunchSettings;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ManagedMod;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModState;
@@ -61,7 +62,7 @@ public final class LauncherActions {
             this.launcherFrame.updateControlState();
             return;
         }
-        this.detailsPanel().showInstance(instance);
+        this.detailsPanel().showInstance(instance, this.launcherService.settings());
         this.launcherFrame.updateControlState();
         if (instance.type().hasMods) this.refreshMods(instance);
     }
@@ -111,6 +112,22 @@ public final class LauncherActions {
         MinecraftInstance instance = this.selectedInstance();
         MinecraftAccount account = this.launcherService.account();
         if (instance == null || account == null || this.launcherFrame.isMinecraftRunning()) return;
+        LauncherService.LowMemoryWarning memoryWarning = this.launcherService.lowMemoryWarning(instance);
+        if (memoryWarning != null) {
+            int choice = JOptionPane.showConfirmDialog(
+                    this.launcherFrame,
+                    Localization.text(
+                            "main.prompt.low_free_memory",
+                            memoryWarning.allocatedMemoryMiB(),
+                            memoryWarning.availableMemoryMiB(),
+                            memoryWarning.totalMemoryMiB()
+                    ),
+                    Localization.text("main.dialog.low_free_memory"),
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE
+            );
+            if (choice != JOptionPane.YES_OPTION) return;
+        }
         this.detailsPanel().showActivityTab();
         this.launcherFrame.appendActivity(instance.id(), Localization.text(
                 "main.activity.launching", instance.name(), account.username()
@@ -406,6 +423,83 @@ public final class LauncherActions {
                     this.refreshMods(instance);
                 }
         );
+    }
+
+    public void saveInstanceSettingsRequested(
+            @NotNull String instanceId,
+            @NotNull InstanceLaunchSettings settings
+    ) {
+        new SwingWorker<MinecraftInstance, Void>() {
+            @NotNull
+            @Override
+            protected MinecraftInstance doInBackground() throws Exception {
+                return LauncherActions.this.launcherService.updateInstanceLaunchSettings(instanceId, settings);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    MinecraftInstance updated = this.get();
+                    LauncherActions.this.sidebarPanel().updateInstance(updated);
+                    LauncherActions.this.detailsPanel().instanceSettingsTab().settingsSaveFinished(
+                            instanceId,
+                            settings,
+                            updated
+                    );
+                }
+                catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    LauncherActions.this.detailsPanel().instanceSettingsTab().settingsSaveFinished(
+                            instanceId,
+                            settings,
+                            null
+                    );
+                }
+                catch (ExecutionException exception) {
+                    LauncherActions.this.detailsPanel().instanceSettingsTab().settingsSaveFinished(
+                            instanceId,
+                            settings,
+                            null
+                    );
+                    LauncherActions.this.launcherFrame.showError(
+                            Localization.text("main.error.save_instance_settings"),
+                            exception.getCause(),
+                            instanceId
+                    );
+                }
+            }
+        }.execute();
+    }
+
+    public void saveInstanceNotesRequested(@NotNull String instanceId, @NotNull String notes) {
+        new SwingWorker<MinecraftInstance, Void>() {
+            @NotNull
+            @Override
+            protected MinecraftInstance doInBackground() throws Exception {
+                return LauncherActions.this.launcherService.updateInstanceNotes(instanceId, notes);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    MinecraftInstance updated = this.get();
+                    LauncherActions.this.sidebarPanel().updateInstance(updated);
+                    LauncherActions.this.detailsPanel().notesTab().notesSaveFinished(instanceId, notes, true);
+                }
+                catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    LauncherActions.this.detailsPanel().notesTab().notesSaveFinished(instanceId, notes, false);
+                }
+                catch (ExecutionException exception) {
+                    LauncherActions.this.detailsPanel().notesTab().notesSaveFinished(instanceId, notes, false);
+                    LauncherActions.this.launcherFrame.showError(
+                            Localization.text("main.error.save_instance_notes"),
+                            exception.getCause(),
+                            instanceId
+                    );
+                }
+            }
+        }.execute();
     }
 
     //---instance data---

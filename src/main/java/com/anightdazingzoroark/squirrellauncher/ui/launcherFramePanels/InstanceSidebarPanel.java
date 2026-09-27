@@ -185,6 +185,19 @@ public final class InstanceSidebarPanel extends JPanel {
         this.rebuildInstanceList(selectedId);
     }
 
+    public void updateInstance(@NotNull MinecraftInstance instance) {
+        for (int index = 0; index < this.instances.size(); index++) {
+            if (!instance.id().equals(this.instances.get(index).id())) continue;
+            this.instances.set(index, instance);
+            break;
+        }
+        for (int index = 0; index < this.instanceModel.size(); index++) {
+            if (!instance.id().equals(this.instanceModel.get(index).id())) continue;
+            this.instanceModel.set(index, instance);
+            break;
+        }
+    }
+
     public void clearSearch() {
         this.instanceSearchField.setText("");
     }

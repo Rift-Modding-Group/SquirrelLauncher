@@ -20,7 +20,7 @@ import java.awt.FlowLayout;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class ModsTab extends JPanel {
+public final class InstanceModsTab extends JPanel {
     @NotNull
     private final ModTableModel modTableModel = new ModTableModel();
     @NotNull
@@ -32,7 +32,7 @@ public final class ModsTab extends JPanel {
     @NotNull
     private final JButton removeModButton = new JButton(Localization.text("main.button.remove"));
 
-    public ModsTab(@NotNull LauncherActions launcherActions) {
+    public InstanceModsTab(@NotNull LauncherActions launcherActions) {
         super(new BorderLayout(0, 8));
         this.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
 

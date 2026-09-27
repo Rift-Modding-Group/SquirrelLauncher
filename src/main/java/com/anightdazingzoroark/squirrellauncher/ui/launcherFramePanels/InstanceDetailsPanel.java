@@ -1,13 +1,16 @@
 package com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels;
 
 import com.anightdazingzoroark.squirrellauncher.SquirrelLauncher;
+import com.anightdazingzoroark.squirrellauncher.launcher.LauncherSettings;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
 import com.anightdazingzoroark.squirrellauncher.ui.InstanceIconProvider;
 import com.anightdazingzoroark.squirrellauncher.ui.LauncherActions;
 import com.anightdazingzoroark.squirrellauncher.ui.LauncherFrame;
 import com.anightdazingzoroark.squirrellauncher.ui.Localization;
-import com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels.instanceDetailsTabs.ActivityTab;
-import com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels.instanceDetailsTabs.ModsTab;
+import com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels.instanceDetailsTabs.InstanceActivityTab;
+import com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels.instanceDetailsTabs.InstanceSettingsTab;
+import com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels.instanceDetailsTabs.InstanceModsTab;
+import com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels.instanceDetailsTabs.InstanceNotesTab;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -75,15 +78,21 @@ public final class InstanceDetailsPanel extends JPanel {
     @NotNull
     private final JTabbedPane tabs = new JTabbedPane();
     @NotNull
-    private final ActivityTab activityTab = new ActivityTab();
+    private final InstanceActivityTab activityTab = new InstanceActivityTab();
     @NotNull
-    private final ModsTab modsTab;
+    private final InstanceModsTab modsTab;
+    @NotNull
+    private final InstanceSettingsTab instanceSettingsTab;
+    @NotNull
+    private final InstanceNotesTab notesTab;
     private boolean selectedInstanceHasMods;
 
     public InstanceDetailsPanel(@NotNull LauncherActions launcherActions) {
         super();
         this.setLayout(this.contentLayout);
-        this.modsTab = new ModsTab(launcherActions);
+        this.modsTab = new InstanceModsTab(launcherActions);
+        this.instanceSettingsTab = new InstanceSettingsTab(launcherActions);
+        this.notesTab = new InstanceNotesTab(launcherActions);
 
         JPanel emptyPanel = new JPanel(new GridBagLayout());
         this.emptyInstanceMessage.setFont(this.emptyInstanceMessage.getFont().deriveFont(Font.BOLD, 22f));
@@ -95,19 +104,31 @@ public final class InstanceDetailsPanel extends JPanel {
         detailsPanel.add(this.createInstanceHeader(launcherActions), BorderLayout.NORTH);
         this.tabs.addTab(Localization.text("main.tab.activity"), this.activityTab);
         this.tabs.addTab(Localization.text("main.tab.mods"), this.modsTab);
+        this.tabs.addTab(Localization.text("main.tab.settings"), this.instanceSettingsTab);
+        this.tabs.addTab(Localization.text("main.tab.notes"), this.notesTab);
         detailsPanel.add(this.tabs, BorderLayout.CENTER);
         this.add(detailsPanel, INSTANCE_DETAILS_CARD);
         this.contentLayout.show(this, EMPTY_INSTANCE_CARD);
     }
 
     @NotNull
-    public ActivityTab activityTab() {
+    public InstanceActivityTab activityTab() {
         return this.activityTab;
     }
 
     @NotNull
-    public ModsTab modsTab() {
+    public InstanceModsTab modsTab() {
         return this.modsTab;
+    }
+
+    @NotNull
+    public InstanceNotesTab notesTab() {
+        return this.notesTab;
+    }
+
+    @NotNull
+    public InstanceSettingsTab instanceSettingsTab() {
+        return this.instanceSettingsTab;
     }
 
     public void showEmpty(boolean noInstances) {
@@ -116,11 +137,13 @@ public final class InstanceDetailsPanel extends JPanel {
         ));
         this.activityTab.clearDisplayedInstance();
         this.modsTab.setMods(java.util.List.of());
+        this.instanceSettingsTab.clearDisplayedInstance();
+        this.notesTab.clearDisplayedInstance();
         this.selectedInstanceHasMods = false;
         this.contentLayout.show(this, EMPTY_INSTANCE_CARD);
     }
 
-    public void showInstance(@NotNull MinecraftInstance instance) {
+    public void showInstance(@NotNull MinecraftInstance instance, @NotNull LauncherSettings launcherSettings) {
         this.contentLayout.show(this, INSTANCE_DETAILS_CARD);
         this.activityTab.showInstance(instance.id());
         this.showActivityTab();
@@ -135,6 +158,8 @@ public final class InstanceDetailsPanel extends JPanel {
                 : Localization.text("main.instance.version", instance.loaderVersion()));
         this.selectedInstanceHasMods = instance.type().hasMods;
         this.instancePlaytimeLabel.setText(LauncherFrame.playtimeText(instance.totalTimePlayedSeconds()));
+        this.instanceSettingsTab.showInstance(instance, launcherSettings);
+        this.notesTab.showInstance(instance);
         this.setModsTabVisible(instance.type().hasMods);
     }
 
@@ -164,6 +189,8 @@ public final class InstanceDetailsPanel extends JPanel {
                 available && hasInstance && this.selectedInstanceHasMods && !instanceRunning
         );
         this.modsTab.updateControlState(available, hasInstance && this.tabs.indexOfComponent(this.modsTab) >= 0);
+        this.instanceSettingsTab.updateControlState(available && hasInstance && !instanceRunning);
+        this.notesTab.updateControlState(available && hasInstance);
     }
 
     private void setEditorEnabled(@NotNull JPanel editorPanel, @NotNull JLabel pencilLabel, boolean enabled) {

@@ -12,13 +12,10 @@ import java.awt.*;
 public final class LauncherSettingsTab extends AbstractSettingsTab {
     @NotNull
     private final JComboBox<LauncherLanguage> languageSelector;
-    @NotNull
-    private final JButton saveButton;
 
     public LauncherSettingsTab(@NotNull LauncherService launcherService) {
         super(new BorderLayout(), launcherService);
         this.languageSelector = new JComboBox<>(LauncherLanguage.values());
-        this.saveButton = new JButton(Localization.text("settings.button.save"));
 
         this.languageSelector.setSelectedItem(launcherService.settings().language());
         this.languageSelector.setPreferredSize(new Dimension(240, 28));
@@ -82,14 +79,9 @@ public final class LauncherSettingsTab extends AbstractSettingsTab {
         form.add(new JPanel(), filler);
         this.add(form, BorderLayout.CENTER);
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        actions.add(this.saveButton);
-        this.add(actions, BorderLayout.SOUTH);
-
-        this.languageSelector.addActionListener(event -> this.updateControlState());
-        this.saveButton.addActionListener(event -> {
+        this.languageSelector.addActionListener(event -> {
             LauncherLanguage selectedLanguage = (LauncherLanguage) this.languageSelector.getSelectedItem();
-            if (selectedLanguage == null) return;
+            if (selectedLanguage == null || selectedLanguage == launcherService.settings().language()) return;
             LauncherSettings settings = launcherService.settings();
             try {
                 launcherService.updateSettings(new LauncherSettings(
@@ -97,24 +89,19 @@ public final class LauncherSettingsTab extends AbstractSettingsTab {
                         settings.windowWidth(),
                         settings.windowHeight(),
                         settings.allocatedMemoryGigabytes(),
+                        settings.lowMemoryWarning(),
                         selectedLanguage
                 ));
-                this.updateControlState();
             }
             catch (Exception exception) {
                 this.showSaveError(exception);
             }
         });
-        this.updateControlState();
     }
 
     @Override
     @NotNull
     public String header() {
         return Localization.text("settings.launcher.heading");
-    }
-
-    private void updateControlState() {
-        this.saveButton.setEnabled(this.languageSelector.getSelectedItem() != launcherService.settings().language());
     }
 }

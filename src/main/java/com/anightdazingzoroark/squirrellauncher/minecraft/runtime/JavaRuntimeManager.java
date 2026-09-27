@@ -2,6 +2,7 @@ package com.anightdazingzoroark.squirrellauncher.minecraft.runtime;
 
 import com.anightdazingzoroark.squirrellauncher.minecraft.MinecraftPaths;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -16,6 +17,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 public final class JavaRuntimeManager {
     private static final Pattern VERSION_PATTERN = Pattern.compile("(?:java|openjdk) version \"([^\"]+)\"");
@@ -67,6 +69,50 @@ public final class JavaRuntimeManager {
     }
 
     @NotNull
+    public static JavaRuntime resolve(
+            @NotNull JavaVersion requiredVersion,
+            @Nullable Path configuredRuntime
+    ) throws IOException {
+        if (configuredRuntime == null) return JavaRuntimeManager.resolve(requiredVersion);
+
+        Path executable = JavaRuntimeManager.normalizeExecutable(configuredRuntime);
+        if (!Files.isRegularFile(executable) || !Files.isExecutable(executable)) {
+            throw new IOException("The configured Java executable is not usable: " + executable);
+        }
+        JavaVersionResult result = JavaRuntimeManager.inspect(executable);
+        if (result.major() != requiredVersion.major()) {
+            throw new IOException(
+                    "This instance requires Java " + requiredVersion.major()
+                            + ", but the configured runtime is Java " + result.version() + "."
+            );
+        }
+        return new JavaRuntime(
+                requiredVersion,
+                executable.toAbsolutePath().normalize(),
+                result.version()
+        );
+    }
+
+    @NotNull
+    public static List<JavaRuntime> detect(@NotNull JavaVersion requiredVersion) {
+        Set<Path> detectedExecutables = new LinkedHashSet<>();
+        List<JavaRuntime> runtimes = new ArrayList<>();
+        for (Path candidate : JavaRuntimeManager.findCandidates(requiredVersion)) {
+            Path executable = JavaRuntimeManager.normalizeExecutable(candidate);
+            if (!Files.isRegularFile(executable) || !Files.isExecutable(executable)) continue;
+            try {
+                Path detectedExecutable = executable.toRealPath();
+                if (!detectedExecutables.add(detectedExecutable)) continue;
+                JavaVersionResult result = JavaRuntimeManager.inspect(detectedExecutable);
+                if (result.major() != requiredVersion.major()) continue;
+                runtimes.add(new JavaRuntime(requiredVersion, detectedExecutable, result.version()));
+            }
+            catch (IOException | RuntimeException ignored) {}
+        }
+        return List.copyOf(runtimes);
+    }
+
+    @NotNull
     private static List<Path> findCandidates(@NotNull JavaVersion version) {
         Set<Path> candidates = new LinkedHashSet<>();
 
@@ -105,7 +151,44 @@ public final class JavaRuntimeManager {
         // /usr/bin/java may point to either runtime, inspect() determines whether it is usable
         candidates.add(Paths.get("/usr/bin/java"));
 
+        JavaRuntimeManager.addJavaHomes(candidates, Paths.get("/usr/lib/jvm"), 1);
+        JavaRuntimeManager.addJavaHomes(candidates, Paths.get("/Library/Java/JavaVirtualMachines"), 3);
+        String userHome = System.getProperty("user.home");
+        if (userHome != null && !userHome.isBlank()) {
+            JavaRuntimeManager.addJavaHomes(candidates, Paths.get(userHome, ".sdkman", "candidates", "java"), 2);
+            JavaRuntimeManager.addJavaHomes(candidates, Paths.get(userHome, ".asdf", "installs", "java"), 2);
+            JavaRuntimeManager.addJavaHomes(candidates, Paths.get(userHome, ".jdks"), 2);
+        }
+        String programFiles = System.getenv("ProgramFiles");
+        if (programFiles != null && !programFiles.isBlank()) {
+            for (String vendorDirectory : List.of(
+                    "Java", "Eclipse Adoptium", "Microsoft", "Amazon Corretto", "BellSoft", "Zulu", "Semeru"
+            )) {
+                JavaRuntimeManager.addJavaHomes(candidates, Paths.get(programFiles, vendorDirectory), 2);
+            }
+        }
+        String programFilesX86 = System.getenv("ProgramFiles(x86)");
+        if (programFilesX86 != null && !programFilesX86.isBlank()) {
+            for (String vendorDirectory : List.of(
+                    "Java", "Eclipse Adoptium", "Microsoft", "Amazon Corretto", "BellSoft", "Zulu", "Semeru"
+            )) {
+                JavaRuntimeManager.addJavaHomes(candidates, Paths.get(programFilesX86, vendorDirectory), 2);
+            }
+        }
+
         return new ArrayList<>(candidates);
+    }
+
+    private static void addJavaHomes(@NotNull Set<Path> candidates, @NotNull Path root, int maximumDepth) {
+        if (!Files.isDirectory(root)) return;
+        try (Stream<Path> paths = Files.walk(root, maximumDepth)) {
+            paths.filter(Files::isDirectory)
+                    .filter(path -> Files.isRegularFile(
+                            path.resolve("bin").resolve(JavaRuntimeManager.executableName())
+                    ))
+                    .forEach(candidates::add);
+        }
+        catch (IOException | SecurityException ignored) {}
     }
 
     @NotNull

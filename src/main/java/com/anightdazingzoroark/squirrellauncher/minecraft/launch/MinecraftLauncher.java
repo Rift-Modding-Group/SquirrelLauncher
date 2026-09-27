@@ -5,6 +5,7 @@ import com.anightdazingzoroark.squirrellauncher.launcher.LauncherSettings;
 import com.anightdazingzoroark.squirrellauncher.minecraft.MinecraftPaths;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MinecraftAccount;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
+import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceLaunchSettings;
 import com.anightdazingzoroark.squirrellauncher.minecraft.integrity.LibraryIntegrity;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntime;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntimeManager;
@@ -28,7 +29,11 @@ public final class MinecraftLauncher {
         //ensure integrity
         LibraryIntegrity.repair(definition.components());
 
-        JavaRuntime runtime = JavaRuntimeManager.resolve(definition.javaVersion());
+        InstanceLaunchSettings instanceSettings = instance.launchSettings();
+        JavaRuntime runtime = JavaRuntimeManager.resolve(
+                definition.javaVersion(),
+                instanceSettings.javaExecutable()
+        );
         ResolvedLaunchPlan plan = LaunchResolver.resolve(definition);
         Path gameDir = instance.gameDirectory();
         Path nativesDir = instance.nativesDirectory();
@@ -65,7 +70,10 @@ public final class MinecraftLauncher {
         command.add("-Dminecraft.launcher.version=0.1");
         //component-provided JVM args
         command.addAll(plan.jvmArguments());
-        command.add("-Xmx" + settings.allocatedMemoryGigabytes() + "G");
+        int allocatedMemoryGigabytes = instanceSettings.overrideMemory()
+                ? instanceSettings.allocatedMemoryGigabytes()
+                : settings.allocatedMemoryGigabytes();
+        command.add("-Xmx" + allocatedMemoryGigabytes + "G");
         command.add("-cp");
         command.add(classpath);
         command.add(plan.mainClass());
@@ -81,11 +89,20 @@ public final class MinecraftLauncher {
 
         //game window
         command.add("--width");
-        command.add(Integer.toString(settings.windowWidth()));
+        int windowWidth = instanceSettings.overrideWindowSettings()
+                ? instanceSettings.windowWidth()
+                : settings.windowWidth();
+        command.add(Integer.toString(windowWidth));
 
         command.add("--height");
-        command.add(Integer.toString(settings.windowHeight()));
-        if (settings.fullscreen()) command.add("--fullscreen");
+        int windowHeight = instanceSettings.overrideWindowSettings()
+                ? instanceSettings.windowHeight()
+                : settings.windowHeight();
+        command.add(Integer.toString(windowHeight));
+        boolean fullscreen = instanceSettings.overrideWindowSettings()
+                ? instanceSettings.fullscreen()
+                : settings.fullscreen();
+        if (fullscreen) command.add("--fullscreen");
 
         //final launch
         System.out.println();

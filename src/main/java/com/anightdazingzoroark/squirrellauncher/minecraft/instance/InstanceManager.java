@@ -1,6 +1,7 @@
 package com.anightdazingzoroark.squirrellauncher.minecraft.instance;
 
 import com.anightdazingzoroark.squirrellauncher.SquirrelLauncher;
+import com.anightdazingzoroark.squirrellauncher.launcher.LauncherSettings;
 import com.anightdazingzoroark.squirrellauncher.minecraft.InstallUtils;
 import com.anightdazingzoroark.squirrellauncher.minecraft.MinecraftPaths;
 import com.google.gson.Gson;
@@ -21,8 +22,10 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
 import java.util.stream.Stream;
 
@@ -59,7 +62,9 @@ public final class InstanceManager {
                 loaderVersion,
                 null,
                 0,
-                System.currentTimeMillis()
+                System.currentTimeMillis(),
+                InstanceLaunchSettings.defaults(),
+                ""
         );
         Files.createDirectories(instance.gameDirectory());
         Files.createDirectories(instance.nativesDirectory());
@@ -97,7 +102,9 @@ public final class InstanceManager {
                 type.hasMods ? loaderVersion.trim() : null,
                 instance.iconKey(),
                 instance.totalTimePlayedSeconds(),
-                instance.createdTimeMillis()
+                instance.createdTimeMillis(),
+                instance.launchSettings(),
+                instance.notes()
         );
         Path loaderPatch = instance.directory().resolve("patches").resolve(FORGE_COMPONENT + ".json");
         Path backupPatch = null;
@@ -209,6 +216,54 @@ public final class InstanceManager {
                 "SquirrelLauncherCreatedTime",
                 fallbackCreatedTime
         );
+        String javaPathValue = config.getProperty("JavaPath", "").trim();
+        Path javaExecutable = null;
+        if (InstanceManager.booleanValue(config, "OverrideJavaLocation", false) && !javaPathValue.isEmpty()) {
+            try {
+                javaExecutable = Path.of(javaPathValue);
+            }
+            catch (InvalidPathException ignored) {
+                javaExecutable = null;
+            }
+        }
+        boolean overrideWindow = InstanceManager.booleanValue(config, "OverrideWindow", false);
+        boolean fullscreen = InstanceManager.booleanValue(
+                config,
+                "SquirrelLauncherFullscreen",
+                InstanceManager.booleanValue(config, "LaunchMaximized", false)
+        );
+        int windowWidth = (int) Math.clamp(
+                InstanceManager.nonNegativeLong(config, "MinecraftWinWidth", 854),
+                320,
+                7680
+        );
+        int windowHeight = (int) Math.clamp(
+                InstanceManager.nonNegativeLong(config, "MinecraftWinHeight", 480),
+                240,
+                4320
+        );
+        boolean overrideMemory = InstanceManager.booleanValue(config, "OverrideMemory", false);
+        long memoryMegabytes = InstanceManager.nonNegativeLong(
+                config,
+                "MaxMemAlloc",
+                (long) LauncherSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES * 1024L
+        );
+        int allocatedMemoryGigabytes = (int) Math.clamp(
+                (memoryMegabytes + 1023L) / 1024L,
+                LauncherSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES,
+                LauncherSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES
+        );
+        InstanceLaunchSettings launchSettings = new InstanceLaunchSettings(
+                javaExecutable,
+                overrideWindow,
+                fullscreen,
+                windowWidth,
+                windowHeight,
+                overrideMemory,
+                allocatedMemoryGigabytes,
+                InstanceManager.booleanValue(config, "LowMemWarning", true)
+        );
+        String notes = config.getProperty("notes", "");
 
         JsonObject pack = InstallUtils.readJson(componentFile);
         if (!pack.has("formatVersion") || pack.get("formatVersion").getAsInt() != MMC_FORMAT_VERSION) {
@@ -263,7 +318,17 @@ public final class InstanceManager {
         if (type == InstanceType.FORGE && loaderVersion.startsWith(SquirrelLauncher.VERSION + "-")) {
             loaderVersion = loaderVersion.substring((SquirrelLauncher.VERSION + "-").length());
         }
-        return new MinecraftInstance(id, name, type, loaderVersion, iconKey, totalTimePlayed, createdTime);
+        return new MinecraftInstance(
+                id,
+                name,
+                type,
+                loaderVersion,
+                iconKey,
+                totalTimePlayed,
+                createdTime,
+                launchSettings,
+                notes
+        );
     }
 
     public static void setName(@NotNull Path directory, @NotNull String name) throws IOException {
@@ -279,18 +344,32 @@ public final class InstanceManager {
             @NotNull String key,
             @Nullable String value
     ) throws IOException {
+        Map<String, String> values = new LinkedHashMap<>();
+        values.put(key, value);
+        InstanceManager.setConfigValues(directory, values);
+    }
+
+    public static void setConfigValues(@NotNull Path directory, @NotNull Map<String, String> values)
+            throws IOException {
         Path config = directory.resolve("instance.cfg");
         List<String> lines = new ArrayList<>(Files.readAllLines(config, StandardCharsets.UTF_8));
-        boolean replaced = false;
-        for (int index = 0; index < lines.size(); index++) {
-            if (lines.get(index).startsWith(key + "=")) {
-                if (value == null) lines.remove(index);
-                else lines.set(index, key + "=" + InstanceManager.escapeCfgValue(value));
-                replaced = true;
-                break;
+        for (Map.Entry<String, String> entry : values.entrySet()) {
+            boolean replaced = false;
+            for (int index = 0; index < lines.size(); index++) {
+                if (!lines.get(index).startsWith(entry.getKey() + "=")) continue;
+                if (!replaced && entry.getValue() != null) {
+                    lines.set(index, entry.getKey() + "=" + InstanceManager.escapeCfgValue(entry.getValue()));
+                    replaced = true;
+                }
+                else {
+                    lines.remove(index);
+                    index--;
+                }
+            }
+            if (!replaced && entry.getValue() != null) {
+                lines.add(entry.getKey() + "=" + InstanceManager.escapeCfgValue(entry.getValue()));
             }
         }
-        if (!replaced && value != null) lines.add(key + "=" + InstanceManager.escapeCfgValue(value));
         Files.write(config, lines, StandardCharsets.UTF_8);
     }
 
@@ -350,5 +429,10 @@ public final class InstanceManager {
         catch (NumberFormatException exception) {
             return fallback;
         }
+    }
+
+    private static boolean booleanValue(@NotNull Properties config, @NotNull String key, boolean fallback) {
+        String value = config.getProperty(key);
+        return value == null ? fallback : Boolean.parseBoolean(value.trim());
     }
 }

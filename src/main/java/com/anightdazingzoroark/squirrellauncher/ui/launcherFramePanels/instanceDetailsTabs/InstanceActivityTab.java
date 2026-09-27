@@ -16,7 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-public final class ActivityTab extends JPanel {
+public final class InstanceActivityTab extends JPanel {
     private static final int MAX_ACTIVITY_CHARACTERS = 250_000;
     @NotNull
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss");
@@ -28,7 +28,7 @@ public final class ActivityTab extends JPanel {
     @Nullable
     private String displayedInstanceId;
 
-    public ActivityTab() {
+    public InstanceActivityTab() {
         super(new BorderLayout());
         this.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
         this.activityArea.setEditable(false);

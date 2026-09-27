@@ -39,10 +39,6 @@ public final class SettingsDialog extends AbstractDialog<Void> {
         this.tabs.setBorder(BorderFactory.createEmptyBorder(10, 10, 0, 10));
         this.add(this.tabs, BorderLayout.CENTER);
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
-        actions.setBorder(BorderFactory.createEmptyBorder(0, 12, 12, 12));
-        this.add(actions, BorderLayout.SOUTH);
-
         this.setMinimumSize(new Dimension(680, 520));
         this.resizeToContent();
         this.setLocationRelativeTo(owner);
