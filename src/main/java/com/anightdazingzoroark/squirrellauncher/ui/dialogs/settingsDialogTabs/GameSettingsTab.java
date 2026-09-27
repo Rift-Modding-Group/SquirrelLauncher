@@ -7,6 +7,7 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.Hashtable;
 
 public final class GameSettingsTab extends AbstractSettingsTab {
     @NotNull
@@ -16,6 +17,10 @@ public final class GameSettingsTab extends AbstractSettingsTab {
     @NotNull
     private final JSpinner windowHeightSpinner;
     @NotNull
+    private final JSlider allocatedMemorySlider;
+    @NotNull
+    private final JLabel allocatedMemoryValueLabel;
+    @NotNull
     private final JButton saveButton;
 
     public GameSettingsTab(@NotNull LauncherService launcherService) {
@@ -23,12 +28,45 @@ public final class GameSettingsTab extends AbstractSettingsTab {
         this.fullscreenCheckBox = new JCheckBox(Localization.text("settings.game.fullscreen"));
         this.windowWidthSpinner = new JSpinner(new SpinnerNumberModel(1280, 320, 7680, 1));
         this.windowHeightSpinner = new JSpinner(new SpinnerNumberModel(720, 240, 4320, 1));
+        this.allocatedMemorySlider = new JSlider(
+                LauncherSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES,
+                LauncherSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES,
+                LauncherSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES
+        );
+        this.allocatedMemoryValueLabel = new JLabel();
         this.saveButton = new JButton(Localization.text("settings.button.save"));
 
         LauncherSettings settings = launcherService.settings();
         this.fullscreenCheckBox.setSelected(settings.fullscreen());
         this.windowWidthSpinner.setValue(settings.windowWidth());
         this.windowHeightSpinner.setValue(settings.windowHeight());
+        this.allocatedMemorySlider.setValue(settings.allocatedMemoryGigabytes());
+        this.allocatedMemorySlider.setMajorTickSpacing(Math.max(
+                1,
+                LauncherSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES / 8
+        ));
+        this.allocatedMemorySlider.setMinorTickSpacing(1);
+        Hashtable<Integer, JComponent> memoryLabels = new Hashtable<>();
+        memoryLabels.put(
+                LauncherSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES,
+                new JLabel(Integer.toString(LauncherSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES))
+        );
+        memoryLabels.put(
+                LauncherSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES,
+                new JLabel(Integer.toString(LauncherSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES))
+        );
+        memoryLabels.put(
+                LauncherSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES,
+                new JLabel(Integer.toString(LauncherSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES))
+        );
+        this.allocatedMemorySlider.setLabelTable(memoryLabels);
+        this.allocatedMemorySlider.setPaintTicks(true);
+        this.allocatedMemorySlider.setPaintLabels(true);
+        this.allocatedMemorySlider.setSnapToTicks(true);
+        this.allocatedMemorySlider.setPreferredSize(new Dimension(420, 52));
+        this.allocatedMemoryValueLabel.setText(
+                Localization.text("settings.game.memory_value", this.allocatedMemorySlider.getValue())
+        );
 
         JPanel form = new JPanel(new GridBagLayout());
         GridBagConstraints title = new GridBagConstraints();
@@ -80,9 +118,33 @@ public final class GameSettingsTab extends AbstractSettingsTab {
         this.windowHeightSpinner.setPreferredSize(new Dimension(110, 28));
         form.add(this.windowHeightSpinner, height);
 
+        GridBagConstraints memoryLabel = new GridBagConstraints();
+        memoryLabel.gridx = 0;
+        memoryLabel.gridy = 4;
+        memoryLabel.anchor = GridBagConstraints.LINE_START;
+        memoryLabel.insets = new Insets(16, 0, 5, 14);
+        form.add(new JLabel(Localization.text("settings.game.memory")), memoryLabel);
+
+        GridBagConstraints memoryValue = new GridBagConstraints();
+        memoryValue.gridx = 1;
+        memoryValue.gridy = 4;
+        memoryValue.weightx = 1;
+        memoryValue.anchor = GridBagConstraints.LINE_START;
+        memoryValue.insets = new Insets(16, 0, 5, 0);
+        form.add(this.allocatedMemoryValueLabel, memoryValue);
+
+        GridBagConstraints memory = new GridBagConstraints();
+        memory.gridx = 0;
+        memory.gridy = 5;
+        memory.gridwidth = 2;
+        memory.weightx = 1;
+        memory.fill = GridBagConstraints.HORIZONTAL;
+        memory.insets = new Insets(0, 0, 5, 0);
+        form.add(this.allocatedMemorySlider, memory);
+
         GridBagConstraints filler = new GridBagConstraints();
         filler.gridx = 0;
-        filler.gridy = 4;
+        filler.gridy = 6;
         filler.gridwidth = 2;
         filler.weighty = 1;
         filler.fill = GridBagConstraints.VERTICAL;
@@ -96,12 +158,19 @@ public final class GameSettingsTab extends AbstractSettingsTab {
         this.fullscreenCheckBox.addActionListener(event -> this.updateControlState());
         this.windowWidthSpinner.addChangeListener(event -> this.updateControlState());
         this.windowHeightSpinner.addChangeListener(event -> this.updateControlState());
+        this.allocatedMemorySlider.addChangeListener(event -> {
+            this.allocatedMemoryValueLabel.setText(
+                    Localization.text("settings.game.memory_value", this.allocatedMemorySlider.getValue())
+            );
+            this.updateControlState();
+        });
         this.saveButton.addActionListener(event -> {
             try {
                 launcherService.updateSettings(new LauncherSettings(
                         this.fullscreenCheckBox.isSelected(),
                         (Integer) this.windowWidthSpinner.getValue(),
                         (Integer) this.windowHeightSpinner.getValue(),
+                        this.allocatedMemorySlider.getValue(),
                         launcherService.settings().language()
                 ));
                 this.updateControlState();
@@ -123,7 +192,8 @@ public final class GameSettingsTab extends AbstractSettingsTab {
         LauncherSettings savedSettings = launcherService.settings();
         boolean changed = savedSettings.fullscreen() != this.fullscreenCheckBox.isSelected()
                 || savedSettings.windowWidth() != (Integer) this.windowWidthSpinner.getValue()
-                || savedSettings.windowHeight() != (Integer) this.windowHeightSpinner.getValue();
+                || savedSettings.windowHeight() != (Integer) this.windowHeightSpinner.getValue()
+                || savedSettings.allocatedMemoryGigabytes() != this.allocatedMemorySlider.getValue();
         boolean windowed = !this.fullscreenCheckBox.isSelected();
         this.windowWidthSpinner.setEnabled(windowed);
         this.windowHeightSpinner.setEnabled(windowed);

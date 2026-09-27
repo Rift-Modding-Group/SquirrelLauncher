@@ -96,6 +96,7 @@ public final class LauncherSettingsTab extends AbstractSettingsTab {
                         settings.fullscreen(),
                         settings.windowWidth(),
                         settings.windowHeight(),
+                        settings.allocatedMemoryGigabytes(),
                         selectedLanguage
                 ));
                 this.updateControlState();

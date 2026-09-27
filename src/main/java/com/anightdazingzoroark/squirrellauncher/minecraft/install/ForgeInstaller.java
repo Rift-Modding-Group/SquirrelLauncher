@@ -6,6 +6,8 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.download.Downloader;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntime;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntimeManager;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaVersion;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.jetbrains.annotations.NotNull;
 
@@ -31,9 +33,9 @@ public final class ForgeInstaller extends AbstractInstaller {
     @Override
     @NotNull
     protected Optional<Path> verifyInstallation(@NotNull String version, @NotNull Path installDirectory) throws IOException, InterruptedException {
-        String versionId = ForgeConstants.versionId(version);
-        JsonObject forgeMetadata = InstallUtils.readJson(installDirectory.resolve(versionId + ".json"));
-        return forgeMetadata.has("libraries") ? Optional.of(installDirectory) : Optional.empty();
+        return this.isForgeInstallationValid(version, installDirectory)
+                ? Optional.of(installDirectory)
+                : Optional.empty();
     }
 
     @Override
@@ -112,8 +114,10 @@ public final class ForgeInstaller extends AbstractInstaller {
             throw new IOException("Forge installer exited with code " + exitCode);
         }
 
-        if (!Files.exists(forgeVersionJson)) {
-            throw new IOException("Forge installer completed, but the Forge version JSON was not created:\n" + forgeVersionJson);
+        if (!this.isForgeInstallationValid(version, forgeVersionDir)) {
+            throw new IOException(
+                    "Forge installer completed, but the Forge installation is incomplete:\n" + forgeVersionJson
+            );
         }
 
         return forgeVersionDir;
@@ -130,5 +134,36 @@ public final class ForgeInstaller extends AbstractInstaller {
     protected boolean installationExists(@NotNull String version, @NotNull Path installDirectory) {
         String versionId = ForgeConstants.versionId(version);
         return Files.isRegularFile(installDirectory.resolve(versionId + ".json"));
+    }
+
+    private boolean isForgeInstallationValid(@NotNull String version, @NotNull Path installDirectory) throws IOException {
+        String fullVersion = ForgeConstants.fullVersion(version);
+        String versionId = ForgeConstants.versionId(version);
+        Path metadataFile = installDirectory.resolve(versionId + ".json");
+        if (!Files.isRegularFile(metadataFile)) return false;
+
+        JsonObject forgeMetadata = InstallUtils.readJson(metadataFile);
+        if (!forgeMetadata.has("libraries")) return false;
+
+        String forgeCoordinate = "net.minecraftforge:forge:" + fullVersion;
+        JsonArray libraries = forgeMetadata.getAsJsonArray("libraries");
+        for (JsonElement element : libraries) {
+            JsonObject library = element.getAsJsonObject();
+            if (!library.has("name") || !forgeCoordinate.equals(library.get("name").getAsString())) continue;
+            if (!library.has("downloads")) return false;
+
+            JsonObject downloads = library.getAsJsonObject("downloads");
+            if (!downloads.has("artifact")) return false;
+
+            JsonObject artifact = downloads.getAsJsonObject("artifact");
+            String relativePath = artifact.has("path")
+                    ? artifact.get("path").getAsString()
+                    : "net/minecraftforge/forge/" + fullVersion + "/forge-" + fullVersion + ".jar";
+            Path forgeJar = MinecraftPaths.LIBRARIES.resolve(relativePath);
+            if (!artifact.has("sha1")) return Files.isRegularFile(forgeJar) && InstallUtils.isValidArchive(forgeJar);
+            return Downloader.sha1Matches(forgeJar, artifact.get("sha1").getAsString());
+        }
+
+        return false;
     }
 }

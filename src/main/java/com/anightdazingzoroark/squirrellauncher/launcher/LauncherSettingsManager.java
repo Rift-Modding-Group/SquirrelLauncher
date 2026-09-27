@@ -29,10 +29,18 @@ public final class LauncherSettingsManager {
             if (formatVersion != FORMAT_VERSION) {
                 throw new IOException("Unsupported settings file version: " + formatVersion);
             }
+            int allocatedMemoryGigabytes = root.has("allocatedMemoryGigabytes")
+                    ? root.get("allocatedMemoryGigabytes").getAsInt()
+                    : LauncherSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES;
+            allocatedMemoryGigabytes = Math.max(
+                    LauncherSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES,
+                    Math.min(LauncherSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES, allocatedMemoryGigabytes)
+            );
             this.settings = new LauncherSettings(
                     root.has("fullscreen") && root.get("fullscreen").getAsBoolean(),
                     root.has("windowWidth") ? root.get("windowWidth").getAsInt() : 1280,
                     root.has("windowHeight") ? root.get("windowHeight").getAsInt() : 720,
+                    allocatedMemoryGigabytes,
                     root.has("language")
                             ? LauncherLanguage.fromCode(root.get("language").getAsString())
                             : LauncherLanguage.systemDefault()
@@ -57,6 +65,7 @@ public final class LauncherSettingsManager {
         root.addProperty("fullscreen", settings.fullscreen());
         root.addProperty("windowWidth", settings.windowWidth());
         root.addProperty("windowHeight", settings.windowHeight());
+        root.addProperty("allocatedMemoryGigabytes", settings.allocatedMemoryGigabytes());
         root.addProperty("language", settings.language().code());
 
         Path settingsFile = MinecraftPaths.SETTINGS;

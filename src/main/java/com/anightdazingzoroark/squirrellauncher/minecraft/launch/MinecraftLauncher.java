@@ -60,12 +60,12 @@ public final class MinecraftLauncher {
         List<String> command = new ArrayList<>();
         command.add(runtime.executable().toString());
         command.add("-Xms512M");
-        command.add("-Xmx2G");
         command.add("-Djava.library.path=" + nativesDir.toAbsolutePath());
         command.add("-Dminecraft.launcher.brand=" + SquirrelLauncher.NAME);
         command.add("-Dminecraft.launcher.version=0.1");
         //component-provided JVM args
         command.addAll(plan.jvmArguments());
+        command.add("-Xmx" + settings.allocatedMemoryGigabytes() + "G");
         command.add("-cp");
         command.add(classpath);
         command.add(plan.mainClass());
