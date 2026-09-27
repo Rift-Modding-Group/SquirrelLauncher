@@ -26,8 +26,8 @@ public final class GameSettingsTab extends AbstractSettingsTab {
     public GameSettingsTab(@NotNull LauncherService launcherService) {
         super(new BorderLayout(), launcherService);
         this.fullscreenCheckBox = new JCheckBox(Localization.text("settings.game.fullscreen"));
-        this.windowWidthSpinner = new JSpinner(new SpinnerNumberModel(1280, 320, 7680, 1));
-        this.windowHeightSpinner = new JSpinner(new SpinnerNumberModel(720, 240, 4320, 1));
+        this.windowWidthSpinner = new JSpinner(new SpinnerNumberModel(854, 320, 7680, 1));
+        this.windowHeightSpinner = new JSpinner(new SpinnerNumberModel(480, 240, 4320, 1));
         this.allocatedMemorySlider = new JSlider(
                 LauncherSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES,
                 LauncherSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES,

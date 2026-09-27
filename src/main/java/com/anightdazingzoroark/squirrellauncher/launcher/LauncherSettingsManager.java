@@ -32,14 +32,15 @@ public final class LauncherSettingsManager {
             int allocatedMemoryGigabytes = root.has("allocatedMemoryGigabytes")
                     ? root.get("allocatedMemoryGigabytes").getAsInt()
                     : LauncherSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES;
-            allocatedMemoryGigabytes = Math.max(
+            allocatedMemoryGigabytes = Math.clamp(
+                    allocatedMemoryGigabytes,
                     LauncherSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES,
-                    Math.min(LauncherSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES, allocatedMemoryGigabytes)
+                    LauncherSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES
             );
             this.settings = new LauncherSettings(
                     root.has("fullscreen") && root.get("fullscreen").getAsBoolean(),
-                    root.has("windowWidth") ? root.get("windowWidth").getAsInt() : 1280,
-                    root.has("windowHeight") ? root.get("windowHeight").getAsInt() : 720,
+                    root.has("windowWidth") ? root.get("windowWidth").getAsInt() : 854,
+                    root.has("windowHeight") ? root.get("windowHeight").getAsInt() : 480,
                     allocatedMemoryGigabytes,
                     root.has("language")
                             ? LauncherLanguage.fromCode(root.get("language").getAsString())

@@ -89,6 +89,8 @@ public final class InstanceSidebarPanel extends JPanel {
     @NotNull
     private final JPopupMenu emptyInstanceActionsMenu = new JPopupMenu();
     @NotNull
+    private final JPopupMenu instanceIconPopupMenu = new JPopupMenu();
+    @NotNull
     private final JMenuItem addInstanceMenuItem = new JMenuItem(Localization.text("main.button.add_instance"));
     @NotNull
     private final JMenuItem renameInstanceItem = new JMenuItem(Localization.text("main.menu.rename"));
@@ -102,6 +104,10 @@ public final class InstanceSidebarPanel extends JPanel {
     private final JMenuItem chooseInstanceIconItem = new JMenuItem(Localization.text("main.menu.choose_icon"));
     @NotNull
     private final JMenuItem resetInstanceIconItem = new JMenuItem(Localization.text("main.menu.reset_icon"));
+    @NotNull
+    private final JMenuItem chooseInstanceIconPopupItem = new JMenuItem(Localization.text("main.menu.choose_icon"));
+    @NotNull
+    private final JMenuItem resetInstanceIconPopupItem = new JMenuItem(Localization.text("main.menu.reset_icon"));
     @NotNull
     private final JMenuItem openInFilesItem = new JMenuItem(Localization.text("main.menu.open_in_files"));
     @NotNull
@@ -169,7 +175,7 @@ public final class InstanceSidebarPanel extends JPanel {
 
     public void showIconMenu(@NotNull Component source) {
         if (!this.instanceIconMenu.isEnabled()) return;
-        this.instanceIconMenu.getPopupMenu().show(source, 0, source.getHeight());
+        this.instanceIconPopupMenu.show(source, 0, source.getHeight());
     }
 
     public void updateControlState(boolean available, boolean instanceRunning) {
@@ -189,6 +195,8 @@ public final class InstanceSidebarPanel extends JPanel {
         this.instanceIconMenu.setEnabled(canManageInstanceIcon);
         this.chooseInstanceIconItem.setEnabled(canManageInstanceIcon);
         this.resetInstanceIconItem.setEnabled(available && instance != null && instance.iconKey() != null);
+        this.chooseInstanceIconPopupItem.setEnabled(canManageInstanceIcon);
+        this.resetInstanceIconPopupItem.setEnabled(available && instance != null && instance.iconKey() != null);
         this.openInFilesItem.setEnabled(available && instance != null);
         this.exportInstanceItem.setEnabled(available && instance != null);
         this.deleteInstanceItem.setEnabled(available && instance != null && !instanceRunning);
@@ -393,6 +401,8 @@ public final class InstanceSidebarPanel extends JPanel {
         this.instanceActionsMenu.add(this.convertInstanceItem);
         this.instanceIconMenu.add(this.chooseInstanceIconItem);
         this.instanceIconMenu.add(this.resetInstanceIconItem);
+        this.instanceIconPopupMenu.add(this.chooseInstanceIconPopupItem);
+        this.instanceIconPopupMenu.add(this.resetInstanceIconPopupItem);
         this.instanceActionsMenu.add(this.instanceIconMenu);
         this.instanceActionsMenu.add(this.openInFilesItem);
         this.instanceActionsMenu.addSeparator();
@@ -409,6 +419,8 @@ public final class InstanceSidebarPanel extends JPanel {
         this.convertInstanceItem.addActionListener(event -> this.launcherActions.convertRequested());
         this.chooseInstanceIconItem.addActionListener(event -> this.launcherActions.chooseIconRequested());
         this.resetInstanceIconItem.addActionListener(event -> this.launcherActions.resetIconRequested());
+        this.chooseInstanceIconPopupItem.addActionListener(event -> this.launcherActions.chooseIconRequested());
+        this.resetInstanceIconPopupItem.addActionListener(event -> this.launcherActions.resetIconRequested());
         this.openInFilesItem.addActionListener(event -> this.launcherActions.openFolderRequested());
         this.exportInstanceItem.addActionListener(event -> this.launcherActions.exportRequested());
         this.deleteInstanceItem.addActionListener(event -> this.launcherActions.deleteRequested());

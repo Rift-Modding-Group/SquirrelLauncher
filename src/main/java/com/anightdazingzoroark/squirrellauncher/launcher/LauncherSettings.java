@@ -30,14 +30,13 @@ public record LauncherSettings(
                 Integer.MAX_VALUE,
                 totalMemoryGigabytes
         );
-        DEFAULT_ALLOCATED_MEMORY_GIGABYTES = Math.max(
-                LauncherSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES,
-                Math.min(4, LauncherSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES / 4)
+        DEFAULT_ALLOCATED_MEMORY_GIGABYTES = Math.clamp(
+                LauncherSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES / 4,
+                LauncherSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES, 4
         );
     }
 
     public LauncherSettings {
-        if (language == null) throw new IllegalArgumentException("Launcher language is missing.");
         if (windowWidth < 320 || windowWidth > 7680) {
             throw new IllegalArgumentException("Game window width must be between 320 and 7680 pixels.");
         }
@@ -57,8 +56,8 @@ public record LauncherSettings(
     public static LauncherSettings defaults() {
         return new LauncherSettings(
                 false,
-                1280,
-                720,
+                854,
+                480,
                 LauncherSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES,
                 LauncherLanguage.systemDefault()
         );
