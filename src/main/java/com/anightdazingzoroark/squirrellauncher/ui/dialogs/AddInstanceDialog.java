@@ -23,7 +23,7 @@ public final class AddInstanceDialog extends AbstractDialog<InstanceAdditionRequ
     @NotNull
     private final JLabel loaderLabel;
     @NotNull
-    private final JTextField loaderField;
+    private final LoaderVersionComboBox loaderVersions;
     @NotNull
     private final JTextField archiveField;
     @NotNull
@@ -42,9 +42,9 @@ public final class AddInstanceDialog extends AbstractDialog<InstanceAdditionRequ
         this.nameField = new JTextField("", 26);
         this.tabs = new SelectedContentTabbedPane();
         this.loaderLabel = new JLabel(Localization.text("add.label.loader"));
-        this.loaderField = new JTextField(22);
         this.archiveField = new JTextField(28);
         this.addButton = new JButton(Localization.text("add.button.add"));
+        this.loaderVersions = new LoaderVersionComboBox(this::updateAddButton, this::resizeToContent);
         this.iconButton = new JButton(Localization.text("add.button.choose_image"));
         this.selectedType = InstanceType.VANILLA;
         this.setLayout(new BorderLayout(0, 12));
@@ -92,13 +92,13 @@ public final class AddInstanceDialog extends AbstractDialog<InstanceAdditionRequ
         typeLabelSize.width = Math.max(typeLabelSize.width, this.loaderLabel.getPreferredSize().width);
         typeLabel.setPreferredSize(typeLabelSize);
         Dimension typePanelSize = typePanel.getPreferredSize();
-        typePanelSize.width = Math.max(typePanelSize.width, this.loaderField.getPreferredSize().width);
+        typePanelSize.width = Math.max(typePanelSize.width, this.loaderVersions.getPreferredSize().width);
         typePanel.setPreferredSize(typePanelSize);
 
         JPanel creationPanel = new JPanel(new GridBagLayout());
         creationPanel.setBorder(BorderFactory.createEmptyBorder(12, 8, 12, 8));
         this.addRow(creationPanel, 0, typeLabel, typePanel);
-        this.addRow(creationPanel, 1, this.loaderLabel, this.loaderField);
+        this.addLoaderVersionRow(creationPanel, 1, this.loaderLabel, this.loaderVersions);
         this.tabs.addTab(Localization.text("add.tab.create"), creationPanel);
 
         JPanel importPanel = new JPanel(new GridBagLayout());
@@ -163,8 +163,8 @@ public final class AddInstanceDialog extends AbstractDialog<InstanceAdditionRequ
                 ));
             }
             else {
-                String loaderVersion = this.loaderField.getText().trim();
-                if (this.selectedType.hasMods && loaderVersion.isEmpty()) return;
+                String loaderVersion = this.loaderVersions.selectedVersion();
+                if (this.selectedType.hasMods && loaderVersion == null) return;
                 this.complete(new InstanceAdditionRequest(
                         name,
                         this.selectedType,
@@ -183,7 +183,6 @@ public final class AddInstanceDialog extends AbstractDialog<InstanceAdditionRequ
         this.add(actions, BorderLayout.SOUTH);
 
         this.nameField.getDocument().addDocumentListener(new FieldListener(this::updateAddButton));
-        this.loaderField.getDocument().addDocumentListener(new FieldListener(this::updateAddButton));
         this.tabs.addChangeListener(event -> {
             this.updateAddButton();
             this.resizeToContent();
@@ -198,6 +197,12 @@ public final class AddInstanceDialog extends AbstractDialog<InstanceAdditionRequ
     @NotNull
     public String getTitle() {
         return Localization.text("add.title");
+    }
+
+    @Override
+    public void dispose() {
+        this.loaderVersions.cancelLoading();
+        super.dispose();
     }
 
     @NotNull
@@ -224,19 +229,15 @@ public final class AddInstanceDialog extends AbstractDialog<InstanceAdditionRequ
     private void updateLoaderField() {
         boolean hasLoader = this.selectedType.hasMods;
         this.loaderLabel.setVisible(hasLoader);
-        this.loaderField.setVisible(hasLoader);
-        if (this.selectedType == InstanceType.FORGE) this.loaderField.setText("14.23.5.2859");
-        else if (this.selectedType == InstanceType.CLEANROOM) this.loaderField.setText("0.6.13-alpha");
-        else this.loaderField.setText("");
-        this.updateAddButton();
-        this.resizeToContent();
+        this.loaderVersions.setVisible(hasLoader);
+        this.loaderVersions.load(this.selectedType, null);
     }
 
     private void updateAddButton() {
         boolean validName = InstanceNames.isValid(this.nameField.getText().trim());
         boolean validSelection = this.tabs.getSelectedIndex() == 1
                 ? this.selectedArchive != null
-                : !this.selectedType.hasMods || !this.loaderField.getText().isBlank();
+                : !this.selectedType.hasMods || this.loaderVersions.selectedVersion() != null;
         this.addButton.setEnabled(validName && validSelection);
     }
 

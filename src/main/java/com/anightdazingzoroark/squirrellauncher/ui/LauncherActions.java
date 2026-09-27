@@ -8,6 +8,7 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInst
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ManagedMod;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModState;
 import com.anightdazingzoroark.squirrellauncher.ui.dialogs.AddInstanceDialog;
+import com.anightdazingzoroark.squirrellauncher.ui.dialogs.ChangeLoaderVersionDialog;
 import com.anightdazingzoroark.squirrellauncher.ui.dialogs.ConvertInstanceDialog;
 import com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels.InstanceDetailsPanel;
 import com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels.InstanceSidebarPanel;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+//actions to the launcher are called from here
 public final class LauncherActions {
     @NotNull
     private final LauncherFrame launcherFrame;
@@ -187,6 +189,27 @@ public final class LauncherActions {
                             "main.activity.converted", converted.name(), LauncherFrame.displayName(converted.type())
                     ));
                     this.refreshInstances(converted.id());
+                }
+        );
+    }
+
+    public void changeLoaderVersionRequested() {
+        MinecraftInstance instance = this.selectedInstance();
+        if (instance == null || !instance.type().hasMods || this.launcherFrame.isMinecraftRunning()) return;
+        String loaderVersion = new ChangeLoaderVersionDialog(this.launcherFrame, instance).showModal();
+        if (loaderVersion == null || loaderVersion.equals(instance.loaderVersion())) return;
+        this.launcherFrame.runTask(
+                instance.id(),
+                Localization.text("main.status.changing_version", instance.name()),
+                () -> this.launcherService.changeLoaderVersion(instance, loaderVersion),
+                updated -> {
+                    this.launcherFrame.appendActivity(updated.id(), Localization.text(
+                            "main.activity.changed_version",
+                            updated.name(),
+                            LauncherFrame.displayName(updated.type()),
+                            updated.loaderVersion()
+                    ));
+                    this.refreshInstances(updated.id());
                 }
         );
     }

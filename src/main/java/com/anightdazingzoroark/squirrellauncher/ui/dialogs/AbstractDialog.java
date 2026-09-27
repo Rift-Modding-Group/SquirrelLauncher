@@ -43,11 +43,35 @@ public abstract class AbstractDialog<T> extends JDialog {
     }
 
     protected final void addRow(@NotNull JPanel panel, int row, @NotNull JLabel label, @NotNull Component component) {
+        this.addRow(panel, row, label, component, GridBagConstraints.LINE_START, 5);
+    }
+
+    protected final void addLoaderVersionRow(
+            @NotNull JPanel panel,
+            int row,
+            @NotNull JLabel label,
+            @NotNull LoaderVersionComboBox component
+    ) {
+        int labelTopInset = 5 + Math.max(
+                0,
+                (component.dropdownPreferredHeight() - label.getPreferredSize().height) / 2
+        );
+        this.addRow(panel, row, label, component, GridBagConstraints.FIRST_LINE_START, labelTopInset);
+    }
+
+    private void addRow(
+            @NotNull JPanel panel,
+            int row,
+            @NotNull JLabel label,
+            @NotNull Component component,
+            int labelAnchor,
+            int labelTopInset
+    ) {
         GridBagConstraints left = new GridBagConstraints();
         left.gridx = 0;
         left.gridy = row;
-        left.anchor = GridBagConstraints.LINE_START;
-        left.insets = new Insets(5, 0, 5, 12);
+        left.anchor = labelAnchor;
+        left.insets = new Insets(labelTopInset, 0, 5, 12);
         panel.add(label, left);
 
         GridBagConstraints right = new GridBagConstraints();

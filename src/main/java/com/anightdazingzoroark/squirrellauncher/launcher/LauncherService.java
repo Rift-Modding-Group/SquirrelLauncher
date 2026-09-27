@@ -189,6 +189,15 @@ public final class LauncherService implements AutoCloseable {
     }
 
     @NotNull
+    public MinecraftInstance changeLoaderVersion(
+            @NotNull MinecraftInstance instance,
+            @NotNull String loaderVersion
+    ) throws Exception {
+        if (!instance.type().hasMods) throw new IllegalArgumentException("Vanilla instances do not have a loader version.");
+        return InstanceManager.convert(instance, instance.type(), loaderVersion);
+    }
+
+    @NotNull
     public MinecraftInstance setInstanceIcon(@NotNull MinecraftInstance instance, @NotNull Path source) throws Exception {
         return InstanceIconManager.assign(instance, source);
     }

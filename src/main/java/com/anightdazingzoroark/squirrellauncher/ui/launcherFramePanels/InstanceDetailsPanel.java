@@ -23,6 +23,7 @@ import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -53,13 +54,21 @@ public final class InstanceDetailsPanel extends JPanel {
     @NotNull
     private final JLabel instanceIconPencilLabel = new JLabel(DetailsIcon.PENCIL);
     @NotNull
+    private final JLabel instanceTypePencilLabel = new JLabel(DetailsIcon.PENCIL);
+    @NotNull
+    private final JLabel loaderVersionPencilLabel = new JLabel(DetailsIcon.PENCIL);
+    @NotNull
     private final JPanel instanceNameEditorPanel = new JPanel(new BorderLayout(6, 0));
     @NotNull
     private final JPanel instanceIconEditorPanel = new JPanel();
     @NotNull
+    private final JPanel instanceTypeEditorPanel = new JPanel(new BorderLayout(6, 0));
+    @NotNull
+    private final JPanel loaderVersionEditorPanel = new JPanel(new BorderLayout(6, 0));
+    @NotNull
     private final JLabel instanceTypeLabel = new JLabel(Localization.text("main.instance.type", "—"));
     @NotNull
-    private final JLabel loaderVersionLabel = new JLabel(Localization.text("main.instance.loader", "—"));
+    private final JLabel loaderVersionLabel = new JLabel(Localization.text("main.instance.version", "—"));
     @NotNull
     private final JLabel instancePlaytimeLabel = new JLabel(LauncherFrame.playtimeText(0));
     @NotNull
@@ -68,6 +77,7 @@ public final class InstanceDetailsPanel extends JPanel {
     private final ActivityTab activityTab = new ActivityTab();
     @NotNull
     private final ModsTab modsTab;
+    private boolean selectedInstanceHasMods;
 
     public InstanceDetailsPanel(@NotNull LauncherActions launcherActions) {
         super();
@@ -105,6 +115,7 @@ public final class InstanceDetailsPanel extends JPanel {
         ));
         this.activityTab.clearDisplayedInstance();
         this.modsTab.setMods(java.util.List.of());
+        this.selectedInstanceHasMods = false;
         this.contentLayout.show(this, EMPTY_INSTANCE_CARD);
     }
 
@@ -120,7 +131,8 @@ public final class InstanceDetailsPanel extends JPanel {
         ));
         this.loaderVersionLabel.setText(instance.loaderVersion() == null
                 ? "Minecraft " + SquirrelLauncher.VERSION
-                : Localization.text("main.instance.loader", instance.loaderVersion()));
+                : Localization.text("main.instance.version", instance.loaderVersion()));
+        this.selectedInstanceHasMods = instance.type().hasMods;
         this.instancePlaytimeLabel.setText(LauncherFrame.playtimeText(instance.totalTimePlayedSeconds()));
         this.setModsTabVisible(instance.type().hasMods);
     }
@@ -130,9 +142,34 @@ public final class InstanceDetailsPanel extends JPanel {
     }
 
     public void updateControlState(boolean available, boolean hasInstance, boolean instanceRunning) {
-        this.instanceNameEditorPanel.setEnabled(available && hasInstance && !instanceRunning);
-        this.instanceIconEditorPanel.setEnabled(available && hasInstance);
+        this.setEditorEnabled(
+                this.instanceNameEditorPanel,
+                this.instanceNamePencilLabel,
+                available && hasInstance && !instanceRunning
+        );
+        this.setEditorEnabled(
+                this.instanceIconEditorPanel,
+                this.instanceIconPencilLabel,
+                available && hasInstance
+        );
+        this.setEditorEnabled(
+                this.instanceTypeEditorPanel,
+                this.instanceTypePencilLabel,
+                available && hasInstance && !instanceRunning
+        );
+        this.setEditorEnabled(
+                this.loaderVersionEditorPanel,
+                this.loaderVersionPencilLabel,
+                available && hasInstance && this.selectedInstanceHasMods && !instanceRunning
+        );
         this.modsTab.updateControlState(available, hasInstance && this.tabs.indexOfComponent(this.modsTab) >= 0);
+    }
+
+    private void setEditorEnabled(@NotNull JPanel editorPanel, @NotNull JLabel pencilLabel, boolean enabled) {
+        editorPanel.setEnabled(enabled);
+        if (enabled) return;
+        editorPanel.setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
+        pencilLabel.setIcon(null);
     }
 
     @NotNull
@@ -140,22 +177,40 @@ public final class InstanceDetailsPanel extends JPanel {
         JPanel panel = new JPanel(new GridBagLayout());
 
         this.instanceNameLabel.setFont(this.instanceNameLabel.getFont().deriveFont(Font.BOLD, 22f));
-        this.instanceNamePencilLabel.setVisible(false);
-        this.instanceIconPencilLabel.setVisible(false);
+        this.configurePencilLabel(this.instanceNamePencilLabel);
+        this.configurePencilLabel(this.instanceIconPencilLabel);
+        this.configurePencilLabel(this.instanceTypePencilLabel);
+        this.configurePencilLabel(this.loaderVersionPencilLabel);
         this.instanceNameEditorPanel.setOpaque(false);
         this.instanceIconEditorPanel.setOpaque(false);
+        this.instanceTypeEditorPanel.setOpaque(false);
+        this.loaderVersionEditorPanel.setOpaque(false);
         this.instanceNameEditorPanel.setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
         this.instanceIconEditorPanel.setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
+        this.instanceTypeEditorPanel.setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
+        this.loaderVersionEditorPanel.setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
         this.instanceNameEditorPanel.setToolTipText(Localization.text("main.tooltip.rename_instance"));
         this.instanceIconEditorPanel.setToolTipText(Localization.text("main.tooltip.manage_instance_icon"));
+        this.instanceTypeEditorPanel.setToolTipText(Localization.text("main.tooltip.convert_instance"));
+        this.loaderVersionEditorPanel.setToolTipText(Localization.text("main.tooltip.change_loader_version"));
         this.instanceNameEditorPanel.getAccessibleContext().setAccessibleName(
                 Localization.text("main.tooltip.rename_instance")
         );
         this.instanceIconEditorPanel.getAccessibleContext().setAccessibleName(
                 Localization.text("main.tooltip.manage_instance_icon")
         );
+        this.instanceTypeEditorPanel.getAccessibleContext().setAccessibleName(
+                Localization.text("main.tooltip.convert_instance")
+        );
+        this.loaderVersionEditorPanel.getAccessibleContext().setAccessibleName(
+                Localization.text("main.tooltip.change_loader_version")
+        );
         this.instanceNameEditorPanel.add(this.instanceNameLabel, BorderLayout.CENTER);
         this.instanceNameEditorPanel.add(this.instanceNamePencilLabel, BorderLayout.EAST);
+        this.instanceTypeEditorPanel.add(this.instanceTypeLabel, BorderLayout.CENTER);
+        this.instanceTypeEditorPanel.add(this.instanceTypePencilLabel, BorderLayout.EAST);
+        this.loaderVersionEditorPanel.add(this.loaderVersionLabel, BorderLayout.CENTER);
+        this.loaderVersionEditorPanel.add(this.loaderVersionPencilLabel, BorderLayout.EAST);
         this.instanceIconEditorPanel.setLayout(new OverlayLayout(this.instanceIconEditorPanel));
         this.instanceIconLabel.setAlignmentX(0.5f);
         this.instanceIconLabel.setAlignmentY(0.5f);
@@ -176,6 +231,18 @@ public final class InstanceDetailsPanel extends JPanel {
                 this.instanceIconPencilLabel,
                 () -> launcherActions.manageIconRequested(this.instanceIconEditorPanel),
                 this.instanceIconLabel
+        );
+        new EditHoverListener(
+                this.instanceTypeEditorPanel,
+                this.instanceTypePencilLabel,
+                launcherActions::convertRequested,
+                this.instanceTypeLabel
+        );
+        new EditHoverListener(
+                this.loaderVersionEditorPanel,
+                this.loaderVersionPencilLabel,
+                launcherActions::changeLoaderVersionRequested,
+                this.loaderVersionLabel
         );
 
         GridBagConstraints icon = new GridBagConstraints();
@@ -200,14 +267,14 @@ public final class InstanceDetailsPanel extends JPanel {
         type.gridy = 1;
         type.anchor = GridBagConstraints.LINE_START;
         type.insets = new Insets(0, 0, 0, 18);
-        panel.add(this.instanceTypeLabel, type);
+        panel.add(this.instanceTypeEditorPanel, type);
 
         GridBagConstraints loader = new GridBagConstraints();
         loader.gridx = 2;
         loader.gridy = 1;
         loader.weightx = 1;
         loader.anchor = GridBagConstraints.LINE_START;
-        panel.add(this.loaderVersionLabel, loader);
+        panel.add(this.loaderVersionEditorPanel, loader);
 
         GridBagConstraints playtime = new GridBagConstraints();
         playtime.gridx = 3;
@@ -215,6 +282,14 @@ public final class InstanceDetailsPanel extends JPanel {
         playtime.anchor = GridBagConstraints.LINE_END;
         panel.add(this.instancePlaytimeLabel, playtime);
         return panel;
+    }
+
+    private void configurePencilLabel(@NotNull JLabel pencilLabel) {
+        pencilLabel.setIcon(null);
+        pencilLabel.setPreferredSize(new Dimension(
+                DetailsIcon.PENCIL.getIconWidth(),
+                DetailsIcon.PENCIL.getIconHeight()
+        ));
     }
 
     private void setModsTabVisible(boolean visible) {
@@ -312,7 +387,7 @@ public final class InstanceDetailsPanel extends JPanel {
             this.targetPanel.setBorder(showEditState
                     ? BorderFactory.createLineBorder(this.targetPanel.getForeground())
                     : BorderFactory.createEmptyBorder(1, 1, 1, 1));
-            this.pencilLabel.setVisible(showEditState);
+            this.pencilLabel.setIcon(showEditState ? DetailsIcon.PENCIL : null);
         }
     }
 }

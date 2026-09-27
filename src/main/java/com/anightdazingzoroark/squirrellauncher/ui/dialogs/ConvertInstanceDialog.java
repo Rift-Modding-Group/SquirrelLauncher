@@ -15,7 +15,7 @@ public final class ConvertInstanceDialog extends AbstractDialog<ConvertInstanceD
     @NotNull
     private final JLabel loaderLabel;
     @NotNull
-    private final JTextField loaderField;
+    private final LoaderVersionComboBox loaderVersions;
     @NotNull
     private final JButton convertButton;
     @Nullable
@@ -24,8 +24,8 @@ public final class ConvertInstanceDialog extends AbstractDialog<ConvertInstanceD
     public ConvertInstanceDialog(@NotNull JFrame owner, @NotNull MinecraftInstance instance) {
         super(owner, Localization.text("convert.title", instance.name()));
         this.loaderLabel = new JLabel(Localization.text("convert.label.loader"));
-        this.loaderField = new JTextField(22);
         this.convertButton = new JButton(Localization.text("convert.button.convert"));
+        this.loaderVersions = new LoaderVersionComboBox(this::updateConvertButton, this::resizeToContent);
         this.setLayout(new BorderLayout(0, 12));
         JPanel fields = new JPanel(new GridBagLayout());
         fields.setBorder(BorderFactory.createEmptyBorder(16, 16, 0, 16));
@@ -57,15 +57,15 @@ public final class ConvertInstanceDialog extends AbstractDialog<ConvertInstanceD
                 new JLabel(Localization.text("convert.label.type")),
                 typePanel
         );
-        this.addRow(fields, 2, this.loaderLabel, this.loaderField);
+        this.addLoaderVersionRow(fields, 2, this.loaderLabel, this.loaderVersions);
         this.add(fields, BorderLayout.CENTER);
 
         JButton cancelButton = new JButton(Localization.text("convert.button.cancel"));
         cancelButton.addActionListener(event -> this.dispose());
         this.convertButton.addActionListener(event -> {
             if (this.selectedType == null) return;
-            String loaderVersion = this.loaderField.getText().trim();
-            if (this.selectedType.hasMods && loaderVersion.isEmpty()) return;
+            String loaderVersion = this.loaderVersions.selectedVersion();
+            if (this.selectedType.hasMods && loaderVersion == null) return;
             this.complete(new InstanceConversion(
                     this.selectedType,
                     this.selectedType.hasMods ? loaderVersion : null
@@ -78,11 +78,16 @@ public final class ConvertInstanceDialog extends AbstractDialog<ConvertInstanceD
         actions.add(this.convertButton);
         this.add(actions, BorderLayout.SOUTH);
 
-        this.loaderField.getDocument().addDocumentListener(new FieldListener(this::updateConvertButton));
         this.updateLoaderField();
         this.resizeToContent();
         this.setResizable(false);
         this.setLocationRelativeTo(owner);
+    }
+
+    @Override
+    public void dispose() {
+        this.loaderVersions.cancelLoading();
+        super.dispose();
     }
 
     @NotNull
@@ -109,16 +114,13 @@ public final class ConvertInstanceDialog extends AbstractDialog<ConvertInstanceD
     private void updateLoaderField() {
         boolean hasLoader = this.selectedType != null && this.selectedType.hasMods;
         this.loaderLabel.setVisible(hasLoader);
-        this.loaderField.setVisible(hasLoader);
-        if (this.selectedType == InstanceType.FORGE) this.loaderField.setText("14.23.5.2859");
-        else if (this.selectedType == InstanceType.CLEANROOM) this.loaderField.setText("0.6.13-alpha");
-        else this.loaderField.setText("");
-        this.updateConvertButton();
-        this.resizeToContent();
+        this.loaderVersions.setVisible(hasLoader);
+        this.loaderVersions.load(this.selectedType, null);
     }
 
     private void updateConvertButton() {
-        this.convertButton.setEnabled(this.selectedType != null && (!this.selectedType.hasMods || !this.loaderField.getText().isBlank()));
+        this.convertButton.setEnabled(this.selectedType != null
+                && (!this.selectedType.hasMods || this.loaderVersions.selectedVersion() != null));
     }
 
     public record InstanceConversion(@NotNull InstanceType type, @Nullable String loaderVersion) {}
