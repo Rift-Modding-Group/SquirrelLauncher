@@ -12,33 +12,36 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class LibraryIntegrity {
     private LibraryIntegrity() {}
 
-    public static void repair(@NotNull LaunchComponent component) throws Exception {
-        JsonObject metadata = component.metadata();
-        if (metadata == null || !metadata.has("libraries")) {
-            return;
+    public static void repair(@NotNull List<LaunchComponent> components) throws Exception {
+        List<FileRequirement> requirements = new ArrayList<>();
+        for (LaunchComponent component : components) {
+            JsonObject metadata = component.metadata();
+            if (metadata == null || !metadata.has("libraries")) continue;
+
+            JsonArray libraries = metadata.getAsJsonArray("libraries");
+            for (JsonElement element : libraries) {
+                JsonObject library = element.getAsJsonObject();
+                if (!PlatformRules.isLibraryAllowed(library)) continue;
+
+                repairArtifact(requirements, library, component.legacyMavenFallback());
+                repairNative(requirements, library);
+            }
         }
 
-        JsonArray libraries = metadata.getAsJsonArray("libraries");
-        for (JsonElement element : libraries) {
-            JsonObject library = element.getAsJsonObject();
-            if (!PlatformRules.isLibraryAllowed(library)) continue;
-
-            repairArtifact(
-                    library,
-                    component.legacyMavenFallback()
-            );
-
-            repairNative(
-                    library
-            );
-        }
+        IntegrityManager.ensureAll(requirements, "Libraries");
     }
 
-    private static void repairArtifact(@NotNull JsonObject library, boolean legacyMavenFallback) throws Exception {
+    private static void repairArtifact(
+            @NotNull List<FileRequirement> requirements,
+            @NotNull JsonObject library,
+            boolean legacyMavenFallback
+    ) throws IOException {
         if (!library.has("name")) return;
 
         String coordinate = library.get("name").getAsString();
@@ -56,7 +59,7 @@ public final class LibraryIntegrity {
             String sha1 = stringOrNull(artifact, "sha1");
             Long size = longOrNull(artifact, "size");
 
-            IntegrityManager.ensure(new FileRequirement(MinecraftPaths.LIBRARIES.resolve(relativePath), url, sha1, size));
+            requirements.add(new FileRequirement(MinecraftPaths.LIBRARIES.resolve(relativePath), url, sha1, size));
 
             return;
         }
@@ -68,7 +71,7 @@ public final class LibraryIntegrity {
         String repository = library.has("url") ? library.get("url").getAsString() : "https://libraries.minecraft.net/";
         if (!repository.endsWith("/")) repository += "/";
 
-        IntegrityManager.ensure(new FileRequirement(
+        requirements.add(new FileRequirement(
                 MinecraftPaths.LIBRARIES.resolve(relativePath),
                 repository + relativePath,
                 stringOrNull(library, "sha1"),
@@ -76,7 +79,10 @@ public final class LibraryIntegrity {
         ));
     }
 
-    private static void repairNative(@NotNull JsonObject library) throws Exception {
+    private static void repairNative(
+            @NotNull List<FileRequirement> requirements,
+            @NotNull JsonObject library
+    ) throws IOException {
         if (!library.has("natives") || !library.has("downloads")) return;
 
         JsonObject downloads = library.getAsJsonObject("downloads");
@@ -104,11 +110,11 @@ public final class LibraryIntegrity {
 
         String url = resolveUrl(library, artifact, relativePath);
 
-        IntegrityManager.ensure(new FileRequirement(
+        requirements.add(new FileRequirement(
                 MinecraftPaths.LIBRARIES.resolve(relativePath),
                 url,
                 stringOrNull(artifact, "sha1"),
-                longOrNull(artifact,"size")
+                longOrNull(artifact, "size")
         ));
     }
 

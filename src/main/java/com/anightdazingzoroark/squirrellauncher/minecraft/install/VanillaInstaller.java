@@ -77,10 +77,7 @@ public final class VanillaInstaller extends AbstractInstaller {
                 client.get("sha1").getAsString()
         );
 
-        //step 4: downloadVerified libaries
-        downloadLibraries(versionMetadata);
-
-        //step 5: downloadVerified assets
+        //step 4: downloadVerified assets
         downloadAssets(versionMetadata, verificationMode);
 
         return versionDirectory;
@@ -90,33 +87,6 @@ public final class VanillaInstaller extends AbstractInstaller {
     protected boolean installationExists(@NotNull String version, @NotNull Path installDirectory) {
         return Files.isRegularFile(installDirectory.resolve(version + ".json"))
                 && Files.isRegularFile(installDirectory.resolve(version + ".jar"));
-    }
-
-    private void downloadLibraries(JsonObject version) throws IOException, InterruptedException {
-        JsonArray libraries = version.getAsJsonArray("libraries");
-
-        int count = 0;
-        for (JsonElement element : libraries) {
-            JsonObject library = element.getAsJsonObject();
-            if (!isLibraryAllowed(library)) continue;
-
-            JsonObject downloads = library.getAsJsonObject("downloads");
-            if (downloads == null) continue;
-
-            //normal library
-            if (downloads.has("artifact")) {
-                JsonObject artifact = downloads.getAsJsonObject("artifact");
-                installArtifact(library, artifact);
-                count++;
-            }
-
-            //native library
-            if (library.has("natives") && downloads.has("classifiers")) {
-                installCurrentNative(library, downloads.getAsJsonObject("classifiers"));
-            }
-        }
-
-        System.out.println("Libraries installed: " + count);
     }
 
     private void downloadAssets(@NotNull JsonObject version, @NotNull VerificationMode verificationMode) throws IOException, InterruptedException {

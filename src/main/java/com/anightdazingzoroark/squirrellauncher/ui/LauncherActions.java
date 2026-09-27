@@ -116,6 +116,7 @@ public final class LauncherActions {
         this.launcherFrame.runTask(
                 instance.id(),
                 Localization.text("main.status.preparing"),
+                true,
                 () -> this.launcherService.launch(instance),
                 process -> {
                     this.launcherFrame.refreshAccountSelector();

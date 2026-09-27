@@ -6,6 +6,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -16,23 +17,48 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.HexFormat;
 
 public final class Downloader {
-    private static final HttpClient CLIENT = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build();
+    private static final int MAX_ATTEMPTS = 3;
+    private static final long RETRY_DELAY_MILLIS = 400L;
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(15);
+    private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(3);
+    private static final HttpClient CLIENT = HttpClient.newBuilder()
+            .connectTimeout(CONNECT_TIMEOUT)
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .build();
 
     private Downloader() {}
 
     @NotNull
     public static String getString(@NotNull String url) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url))
+                        .timeout(REQUEST_TIMEOUT)
                         .header("User-Agent", SquirrelLauncher.NAME)
                         .GET().build();
-        HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() / 100 != 2) {
-            throw new IOException("HTTP " + response.statusCode() + " while requesting " + url);
+
+        IOException lastFailure = null;
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() / 100 == 2) return response.body();
+
+                IOException failure = new IOException("HTTP " + response.statusCode() + " while requesting " + url);
+                lastFailure = failure;
+                if (!retryable(response.statusCode()) || attempt == MAX_ATTEMPTS) break;
+            }
+            catch (IOException exception) {
+                if (attempt == MAX_ATTEMPTS) throw exception;
+                lastFailure = exception;
+            }
+
+            System.out.println("[RETRY " + attempt + "/" + MAX_ATTEMPTS + "] " + url);
+            Thread.sleep(RETRY_DELAY_MILLIS * attempt);
         }
-        return response.body();
+
+        throw lastFailure == null ? new IOException("Could not request " + url) : lastFailure;
     }
 
     /**
@@ -50,15 +76,9 @@ public final class Downloader {
         Files.deleteIfExists(temporary);
 
         if (url == null) throw new IOException("No URL has been supplied!");
-        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url))
-                        .header("User-Agent", SquirrelLauncher.NAME)
-                        .GET().build();
 
         try {
-            HttpResponse<Path> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofFile(temporary));
-            if (response.statusCode() / 100 != 2) {
-                throw new IOException("HTTP " + response.statusCode() + " while downloading " + url);
-            }
+            downloadTo(url, temporary, destination.getFileName().toString());
             replace(temporary, destination);
         }
         finally {
@@ -77,19 +97,11 @@ public final class Downloader {
     public static void downloadVerified(@NotNull String url, @NotNull Path destination, @NotNull String expectedSha1) throws IOException, InterruptedException {
         //---existing destination---
         if (Files.isRegularFile(destination)) {
-            //file is all gud
-            if (sha1Matches(destination, expectedSha1)) {
-                System.out.println("[OK] " + destination.getFileName());
-                return;
-            }
+            if (sha1Matches(destination, expectedSha1)) return;
 
-            //file is corrupted
-            System.out.println("[CORRUPT] " + destination + " - downloading replacement");
+            System.out.println("Repairing corrupt file: " + destination.getFileName());
         }
-        else {
-            //file is missing
-            System.out.println("[MISSING] " + destination.getFileName());
-        }
+        else System.out.println("Downloading missing file: " + destination.getFileName());
 
         //---destination directory---
         Path parent = destination.toAbsolutePath().getParent();
@@ -98,16 +110,9 @@ public final class Downloader {
         //---temporary download---
         Path temporary = destination.resolveSibling(destination.getFileName() + ".part");
         Files.deleteIfExists(temporary);
-        System.out.println("[DOWNLOAD] " + destination.getFileName());
 
-        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url))
-                        .header("User-Agent", SquirrelLauncher.NAME)
-                        .GET().build();
         try {
-            HttpResponse<Path> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofFile(temporary));
-            if (response.statusCode() / 100 != 2) {
-                throw new IOException("HTTP " + response.statusCode() + " while downloading " + url);
-            }
+            downloadTo(url, temporary, destination.getFileName().toString());
 
             //---verify replacement---
             if (!sha1Matches(temporary, expectedSha1)) {
@@ -119,32 +124,6 @@ public final class Downloader {
             }
 
             //---replacement passed verification, replace the existing destination---
-            replace(temporary, destination);
-            System.out.println("[VERIFIED] " + destination.getFileName());
-        }
-        finally {
-            Files.deleteIfExists(temporary);
-        }
-    }
-
-    public static void downloadReplacing(@NotNull String url, @NotNull  Path destination) throws IOException, InterruptedException {
-        Path parent = destination.toAbsolutePath().getParent();
-        if (parent != null) Files.createDirectories(parent);
-
-        Path temporary = destination.resolveSibling(destination.getFileName() + ".part");
-        Files.deleteIfExists(temporary);
-
-        System.out.println("[DOWNLOAD] " + destination.getFileName());
-
-        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url))
-                        .header("User-Agent", SquirrelLauncher.NAME)
-                        .GET().build();
-
-        try {
-            HttpResponse<Path> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofFile(temporary));
-            if (response.statusCode() / 100 != 2) {
-                throw new IOException("HTTP " + response.statusCode() + " while downloading " + url);
-            }
             replace(temporary, destination);
         }
         finally {
@@ -183,11 +162,51 @@ public final class Downloader {
 
             int count;
             while ((count = input.read(buffer)) != -1) {
+                if (Thread.currentThread().isInterrupted()) {
+                    throw new InterruptedIOException("Integrity check was stopped.");
+                }
                 digest.update(buffer, 0, count);
             }
         }
 
         return HexFormat.of().formatHex(digest.digest());
+    }
+
+    private static void downloadTo(
+            @NotNull String url,
+            @NotNull Path destination,
+            @NotNull String displayName
+    ) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url))
+                .timeout(REQUEST_TIMEOUT)
+                .header("User-Agent", SquirrelLauncher.NAME)
+                .GET().build();
+        IOException lastFailure = null;
+
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            Files.deleteIfExists(destination);
+            try {
+                HttpResponse<Path> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofFile(destination));
+                if (response.statusCode() / 100 == 2) return;
+
+                IOException failure = new IOException("HTTP " + response.statusCode() + " while downloading " + url);
+                lastFailure = failure;
+                if (!retryable(response.statusCode()) || attempt == MAX_ATTEMPTS) break;
+            }
+            catch (IOException exception) {
+                if (attempt == MAX_ATTEMPTS) throw exception;
+                lastFailure = exception;
+            }
+
+            System.out.println("[RETRY " + attempt + "/" + MAX_ATTEMPTS + "] " + displayName);
+            Thread.sleep(RETRY_DELAY_MILLIS * attempt);
+        }
+
+        throw lastFailure == null ? new IOException("Could not download " + url) : lastFailure;
+    }
+
+    private static boolean retryable(int statusCode) {
+        return statusCode == 408 || statusCode == 425 || statusCode == 429 || statusCode / 100 == 5;
     }
 
     /**

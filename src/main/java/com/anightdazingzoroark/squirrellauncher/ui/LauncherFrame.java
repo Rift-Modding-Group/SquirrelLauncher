@@ -69,6 +69,10 @@ public final class LauncherFrame extends JFrame {
     @Nullable
     private volatile Object taskActivityToken;
     @Nullable
+    private volatile Thread taskThread;
+    private volatile boolean taskCancellable;
+    private volatile boolean taskCancellationRequested;
+    @Nullable
     private volatile String runningActivityInstanceId;
     @Nullable
     private volatile String runningActivityPrefix;
@@ -133,7 +137,7 @@ public final class LauncherFrame extends JFrame {
         });
         this.manageAccountsButton.addActionListener(event -> this.showSettings(SettingsDialog.SettingsTab.ACCOUNTS));
         this.settingsButton.addActionListener(event -> this.showSettings(SettingsDialog.SettingsTab.GAME));
-        this.stopButton.addActionListener(event -> this.stopMinecraft());
+        this.stopButton.addActionListener(event -> this.stopCurrentAction());
         this.launchButton.addActionListener(event -> this.launcherActions.launchRequested());
     }
 
@@ -221,9 +225,17 @@ public final class LauncherFrame extends JFrame {
         return panel;
     }
 
-    private void stopMinecraft() {
+    private void stopCurrentAction() {
         Process process = this.runningProcess;
-        if (process == null || !process.isAlive()) return;
+        if (process == null || !process.isAlive()) {
+            Thread worker = this.taskThread;
+            if (!this.busy || !this.taskCancellable || this.taskCancellationRequested || worker == null) return;
+            this.taskCancellationRequested = true;
+            this.stopButton.setEnabled(false);
+            this.setStatus(Localization.text("main.status.stopping_download"));
+            worker.interrupt();
+            return;
+        }
         int choice = JOptionPane.showConfirmDialog(
                 this,
                 Localization.text("main.confirm.stop"),
@@ -302,16 +314,39 @@ public final class LauncherFrame extends JFrame {
             @Nullable String activityInstanceId, @NotNull String status,
             @NotNull Callable<T> task, @NotNull Consumer<T> onSuccess
     ) {
+        this.runTask(activityInstanceId, status, false, task, onSuccess);
+    }
+
+    <T> void runTask(
+            @Nullable String activityInstanceId, @NotNull String status,
+            boolean cancellable,
+            @NotNull Callable<T> task, @NotNull Consumer<T> onSuccess
+    ) {
         if (this.busy) return;
         Object activityToken = new Object();
         this.taskActivityInstanceId = activityInstanceId;
         this.taskActivityToken = activityToken;
+        this.taskCancellable = cancellable;
+        this.taskCancellationRequested = false;
         this.setStatus(status);
         this.setBusy(true);
         new SwingWorker<T, Void>() {
             @Override
             protected T doInBackground() throws Exception {
-                return task.call();
+                LauncherFrame.this.taskThread = Thread.currentThread();
+                SwingUtilities.invokeLater(LauncherFrame.this::updateControlState);
+                try {
+                    if (LauncherFrame.this.taskCancellationRequested) {
+                        throw new InterruptedException("Operation stopped before it started.");
+                    }
+                    return task.call();
+                }
+                finally {
+                    if (LauncherFrame.this.taskThread == Thread.currentThread()) {
+                        LauncherFrame.this.taskThread = null;
+                        SwingUtilities.invokeLater(LauncherFrame.this::updateControlState);
+                    }
+                }
             }
 
             @Override
@@ -327,9 +362,20 @@ public final class LauncherFrame extends JFrame {
                     );
                 }
                 catch (ExecutionException exception) {
-                    LauncherFrame.this.showError(
-                            Localization.text("main.error.operation_failed"), exception.getCause(), activityInstanceId
-                    );
+                    if (LauncherFrame.this.taskCancellationRequested) {
+                        LauncherFrame.this.setStatus(Localization.text("main.status.download_stopped"));
+                        if (activityInstanceId != null) {
+                            LauncherFrame.this.appendActivity(
+                                    activityInstanceId,
+                                    Localization.text("main.activity.download_stopped")
+                            );
+                        }
+                    }
+                    else {
+                        LauncherFrame.this.showError(
+                                Localization.text("main.error.operation_failed"), exception.getCause(), activityInstanceId
+                        );
+                    }
                 }
                 catch (RuntimeException exception) {
                     LauncherFrame.this.showError(
@@ -340,7 +386,10 @@ public final class LauncherFrame extends JFrame {
                     if (LauncherFrame.this.taskActivityToken == activityToken) {
                         LauncherFrame.this.taskActivityToken = null;
                         LauncherFrame.this.taskActivityInstanceId = null;
+                        LauncherFrame.this.taskCancellable = false;
+                        LauncherFrame.this.taskCancellationRequested = false;
                     }
+                    LauncherFrame.this.updateControlState();
                 }
             }
         }.execute();
@@ -361,7 +410,10 @@ public final class LauncherFrame extends JFrame {
         this.settingsButton.setEnabled(available);
         this.instanceSidebarPanel.updateControlState(available, instanceRunning);
         this.instanceDetailsPanel.updateControlState(available, instance != null, instanceRunning);
-        this.stopButton.setEnabled(available && instanceRunning && this.runningProcess.isAlive());
+        this.stopButton.setEnabled(
+                (available && instanceRunning && this.runningProcess.isAlive())
+                        || (this.busy && this.taskCancellable && !this.taskCancellationRequested && this.taskThread != null)
+        );
         this.launchButton.setEnabled(
                 available && instance != null && this.launcherService.account() != null && !instanceRunning
         );

@@ -37,8 +37,6 @@ public final class CleanroomInstaller extends AbstractInstaller {
     protected Optional<Path> verifyInstallation(@NotNull String version, @NotNull Path installDirectory) throws IOException, InterruptedException {
         Path packRoot = findMmcPackRoot(installDirectory);
         if (packRoot == null || !this.isPackComplete(packRoot)) return Optional.empty();
-
-        this.installLibraries(packRoot);
         return Optional.of(packRoot);
     }
 
@@ -78,10 +76,6 @@ public final class CleanroomInstaller extends AbstractInstaller {
         Path packRoot = findMmcPackRoot(installDir);
         if (packRoot == null) {throw new IOException("Cleanroom package was extracted, but mmc-pack.json could not be found.");}
         System.out.println("Cleanroom package root: " + packRoot.toAbsolutePath());
-
-        //---install libraries declared by Cleanroom's MMC patches---
-        System.out.println("Installing Cleanroom libraries...");
-        installLibraries(packRoot);
 
         return packRoot;
     }
@@ -133,32 +127,6 @@ public final class CleanroomInstaller extends AbstractInstaller {
             if (!Files.isRegularFile(patch)) return false;
         }
         return foundComponent;
-    }
-
-    private void installLibraries(@NotNull Path root) throws IOException, InterruptedException {
-        JsonObject pack = InstallUtils.readJson(root.resolve("mmc-pack.json"));
-
-        for (JsonElement element : pack.getAsJsonArray("components")) {
-            JsonObject component = element.getAsJsonObject();
-            String uid = component.get("uid").getAsString();
-            Path patchFile = root.resolve("patches").resolve(uid + ".json");
-
-            if (!Files.exists(patchFile)) continue;
-
-            JsonObject patch = InstallUtils.readJson(patchFile);
-
-            installLibrariesFrom(patch, "libraries");
-            installLibrariesFrom(patch, "+libraries");
-        }
-    }
-
-    private void installLibrariesFrom(@NotNull JsonObject patch, @NotNull String field) throws IOException, InterruptedException {
-        if (!patch.has(field)) return;
-
-        for (JsonElement element : patch.getAsJsonArray(field)) {
-            JsonObject library = element.getAsJsonObject();
-            this.installLibrary(library, "Cleanroom library");
-        }
     }
 
     private Path findMmcPackRoot(@NotNull Path root) throws IOException {

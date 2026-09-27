@@ -4,6 +4,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -27,6 +28,9 @@ public final class HashUtil {
 
             int read;
             while ((read = input.read(buffer)) != -1) {
+                if (Thread.currentThread().isInterrupted()) {
+                    throw new InterruptedIOException("Integrity check was stopped.");
+                }
                 digest.update(buffer, 0, read);
             }
         }

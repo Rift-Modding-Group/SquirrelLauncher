@@ -6,14 +6,10 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.download.Downloader;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntime;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntimeManager;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaVersion;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
@@ -37,7 +33,7 @@ public final class ForgeInstaller extends AbstractInstaller {
     protected Optional<Path> verifyInstallation(@NotNull String version, @NotNull Path installDirectory) throws IOException, InterruptedException {
         String versionId = ForgeConstants.versionId(version);
         JsonObject forgeMetadata = InstallUtils.readJson(installDirectory.resolve(versionId + ".json"));
-        return this.repairForgeLibraries(forgeMetadata) ? Optional.of(installDirectory) : Optional.empty();
+        return forgeMetadata.has("libraries") ? Optional.of(installDirectory) : Optional.empty();
     }
 
     @Override
@@ -99,16 +95,19 @@ public final class ForgeInstaller extends AbstractInstaller {
 
         builder.directory(MinecraftPaths.ROOT.toFile());
         builder.redirectErrorStream(true);
+        builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
 
+        System.out.println("Installing Forge package...");
         Process process = builder.start();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                System.out.println("[Forge Installer] " + line);
-            }
+        int exitCode;
+        try {
+            exitCode = process.waitFor();
+        }
+        catch (InterruptedException exception) {
+            process.destroyForcibly();
+            throw exception;
         }
 
-        int exitCode = process.waitFor();
         if (exitCode != 0) {
             throw new IOException("Forge installer exited with code " + exitCode);
         }
@@ -131,17 +130,5 @@ public final class ForgeInstaller extends AbstractInstaller {
     protected boolean installationExists(@NotNull String version, @NotNull Path installDirectory) {
         String versionId = ForgeConstants.versionId(version);
         return Files.isRegularFile(installDirectory.resolve(versionId + ".json"));
-    }
-
-    private boolean repairForgeLibraries(@NotNull JsonObject metadata) throws IOException, InterruptedException {
-        if (!metadata.has("libraries")) return false;
-
-        JsonArray libraries = metadata.getAsJsonArray("libraries");
-        for (JsonElement element : libraries) {
-            JsonObject library = element.getAsJsonObject();
-            if (!this.repairLibrary(library)) return false;
-        }
-
-        return true;
     }
 }

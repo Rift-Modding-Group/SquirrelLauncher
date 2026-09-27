@@ -25,10 +25,8 @@ public final class MinecraftLauncher {
             @NotNull MinecraftInstance instance,
             @NotNull LauncherSettings settings
     ) throws Exception {
-        //ensure integrety
-        for (LaunchComponent component : definition.components()) {
-            LibraryIntegrity.repair(component);
-        }
+        //ensure integrity
+        LibraryIntegrity.repair(definition.components());
 
         JavaRuntime runtime = JavaRuntimeManager.resolve(definition.javaVersion());
         ResolvedLaunchPlan plan = LaunchResolver.resolve(definition);
@@ -101,7 +99,14 @@ public final class MinecraftLauncher {
         builder.directory(gameDir.toFile());
         builder.redirectErrorStream(true);
 
+        if (Thread.currentThread().isInterrupted()) {
+            throw new InterruptedException("Launch preparation was stopped.");
+        }
         Process process = builder.start();
+        if (Thread.currentThread().isInterrupted()) {
+            process.destroyForcibly();
+            throw new InterruptedException("Launch preparation was stopped.");
+        }
         Thread outputThread = new Thread(() -> forwardOutput(process, instance.name()), "minecraft-output");
         outputThread.setDaemon(true);
         outputThread.start();
