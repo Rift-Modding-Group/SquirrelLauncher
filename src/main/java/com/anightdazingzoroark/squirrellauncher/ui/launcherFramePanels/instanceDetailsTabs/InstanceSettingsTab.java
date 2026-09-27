@@ -1,6 +1,6 @@
 package com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels.instanceDetailsTabs;
 
-import com.anightdazingzoroark.squirrellauncher.launcher.LauncherSettings;
+import com.anightdazingzoroark.squirrellauncher.launcher.GameSettings;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceLaunchSettings;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceType;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
@@ -52,7 +52,7 @@ public final class InstanceSettingsTab extends JPanel {
     @NotNull
     private final Map<String, InstanceLaunchSettings> queuedSettings = new LinkedHashMap<>();
     @NotNull
-    private LauncherSettings globalSettings = LauncherSettings.defaults();
+    private GameSettings globalSettings = GameSettings.defaults();
     @NotNull
     private InstanceLaunchSettings savedSettings = InstanceLaunchSettings.defaults();
     @Nullable
@@ -143,7 +143,7 @@ public final class InstanceSettingsTab extends JPanel {
         this.clearDisplayedInstance();
     }
 
-    public void showInstance(@NotNull MinecraftInstance instance, @NotNull LauncherSettings globalSettings) {
+    public void showInstance(@NotNull MinecraftInstance instance, @NotNull GameSettings globalSettings) {
         if (instance.id().equals(this.displayedInstanceId) && !this.currentSettings().equals(this.savedSettings)) return;
         if (this.displayedInstanceId != null && !this.currentSettings().equals(this.savedSettings)) {
             this.queueSave(this.displayedInstanceId, this.currentSettings());

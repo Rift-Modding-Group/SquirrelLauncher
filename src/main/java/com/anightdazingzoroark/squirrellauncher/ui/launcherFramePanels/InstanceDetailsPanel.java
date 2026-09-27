@@ -1,7 +1,7 @@
 package com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels;
 
 import com.anightdazingzoroark.squirrellauncher.SquirrelLauncher;
-import com.anightdazingzoroark.squirrellauncher.launcher.LauncherSettings;
+import com.anightdazingzoroark.squirrellauncher.launcher.GameSettings;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
 import com.anightdazingzoroark.squirrellauncher.ui.InstanceIconProvider;
 import com.anightdazingzoroark.squirrellauncher.ui.LauncherActions;
@@ -143,7 +143,7 @@ public final class InstanceDetailsPanel extends JPanel {
         this.contentLayout.show(this, EMPTY_INSTANCE_CARD);
     }
 
-    public void showInstance(@NotNull MinecraftInstance instance, @NotNull LauncherSettings launcherSettings) {
+    public void showInstance(@NotNull MinecraftInstance instance, @NotNull GameSettings launcherSettings) {
         this.contentLayout.show(this, INSTANCE_DETAILS_CARD);
         this.activityTab.showInstance(instance.id());
         this.showActivityTab();

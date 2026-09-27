@@ -4,8 +4,10 @@ import org.jetbrains.annotations.NotNull;
 
 import java.lang.management.ManagementFactory;
 
-/** User-configurable launcher settings. */
-public record LauncherSettings(
+/**
+ * Settings that affect game instances
+ * */
+public record GameSettings(
         boolean fullscreen,
         int windowWidth,
         int windowHeight,
@@ -24,7 +26,7 @@ public record LauncherSettings(
             totalMemoryBytes = memoryOperatingSystem.getTotalMemorySize();
         }
         long totalMemoryGigabytes = Math.max(
-                LauncherSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES,
+                GameSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES,
                 totalMemoryBytes / (1024L * 1024L * 1024L)
         );
         MAXIMUM_ALLOCATED_MEMORY_GIGABYTES = (int) Math.min(
@@ -32,34 +34,34 @@ public record LauncherSettings(
                 totalMemoryGigabytes
         );
         DEFAULT_ALLOCATED_MEMORY_GIGABYTES = Math.clamp(
-                LauncherSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES / 4,
-                LauncherSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES, 4
+                GameSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES / 4,
+                GameSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES, 4
         );
     }
 
-    public LauncherSettings {
+    public GameSettings {
         if (windowWidth < 320 || windowWidth > 7680) {
             throw new IllegalArgumentException("Game window width must be between 320 and 7680 pixels.");
         }
         if (windowHeight < 240 || windowHeight > 4320) {
             throw new IllegalArgumentException("Game window height must be between 240 and 4320 pixels.");
         }
-        if (allocatedMemoryGigabytes < LauncherSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES
-                || allocatedMemoryGigabytes > LauncherSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES) {
+        if (allocatedMemoryGigabytes < GameSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES
+                || allocatedMemoryGigabytes > GameSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES) {
             throw new IllegalArgumentException(
                     "Allocated memory must be between 1 and "
-                            + LauncherSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES + " GB."
+                            + GameSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES + " GB."
             );
         }
     }
 
     @NotNull
-    public static LauncherSettings defaults() {
-        return new LauncherSettings(
+    public static GameSettings defaults() {
+        return new GameSettings(
                 false,
                 854,
                 480,
-                LauncherSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES,
+                GameSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES,
                 true,
                 LauncherLanguage.systemDefault()
         );

@@ -65,6 +65,7 @@ instance.settings.java.none_detected=No compatible Java {0} runtime was detected
 instance.settings.java.detect_error=Could not detect Java runtimes
 instance.settings.java.invalid_runtime=Unavailable: {0}
 instance.settings.use_default=Use defaults
+instance.notes.placeholder=Write your notes here...
 settings.game.low_memory_warning=Warn when there is not enough free memory
 main.status.using_account=Using {0}.
 main.activity.switched_account=Switched to {0}.

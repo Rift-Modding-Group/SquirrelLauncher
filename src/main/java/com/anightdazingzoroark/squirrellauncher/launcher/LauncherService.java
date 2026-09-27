@@ -41,7 +41,7 @@ public final class LauncherService implements AutoCloseable {
     @NotNull
     private final AccountManager accountManager = new AccountManager();
     @NotNull
-    private final LauncherSettingsManager settingsManager = new LauncherSettingsManager();
+    private final GameSettingsManager settingsManager = new GameSettingsManager();
     @NotNull
     private final InstanceOrderManager instanceOrderManager = new InstanceOrderManager();
 
@@ -80,18 +80,18 @@ public final class LauncherService implements AutoCloseable {
 
     //---settings stuff---
     @NotNull
-    public LauncherSettings settings() {
+    public GameSettings settings() {
         return this.settingsManager.settings();
     }
 
-    public void updateSettings(@NotNull LauncherSettings settings) throws Exception {
+    public void updateSettings(@NotNull GameSettings settings) throws Exception {
         this.settingsManager.update(settings);
     }
 
     @Nullable
     public LowMemoryWarning lowMemoryWarning(@NotNull MinecraftInstance instance) {
         InstanceLaunchSettings instanceSettings = instance.launchSettings();
-        LauncherSettings launcherSettings = this.settingsManager.settings();
+        GameSettings launcherSettings = this.settingsManager.settings();
         boolean warningEnabled = instanceSettings.overrideMemory()
                 ? instanceSettings.lowMemoryWarning()
                 : launcherSettings.lowMemoryWarning();

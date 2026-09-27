@@ -2,6 +2,7 @@ package com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels.instance
 
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
 import com.anightdazingzoroark.squirrellauncher.ui.LauncherActions;
+import com.anightdazingzoroark.squirrellauncher.ui.Localization;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -12,7 +13,7 @@ import javax.swing.JTextArea;
 import javax.swing.Timer;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import java.awt.BorderLayout;
+import java.awt.*;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.util.LinkedHashMap;
@@ -20,7 +21,7 @@ import java.util.Map;
 
 public final class InstanceNotesTab extends JPanel {
     @NotNull
-    private final JTextArea notesArea = new JTextArea();
+    private final JTextArea notesArea = new InstanceNotesTextArea();
     @NotNull
     private final Timer saveTimer;
     @NotNull
@@ -139,5 +140,22 @@ public final class InstanceNotesTab extends JPanel {
         this.queuedNotes.remove(instanceId);
         this.saveInProgress = true;
         this.launcherActions.saveInstanceNotesRequested(instanceId, notes);
+    }
+
+    //special text area that allows for placeholder text
+    private static class InstanceNotesTextArea extends JTextArea {
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            if (!getText().isEmpty()) return;
+
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g2.setColor(Color.GRAY);
+            int x = getInsets().left + 2;
+            int y = getInsets().top + getFontMetrics(getFont()).getAscent();
+            g2.drawString(Localization.text("instance.notes.placeholder"), x, y);
+            g2.dispose();
+        }
     }
 }

@@ -1,6 +1,6 @@
 package com.anightdazingzoroark.squirrellauncher.ui;
 
-import com.anightdazingzoroark.squirrellauncher.launcher.LauncherSettings;
+import com.anightdazingzoroark.squirrellauncher.launcher.GameSettings;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceLaunchSettings;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -38,9 +38,9 @@ public final class GameSettingsControls extends JPanel {
     private final JSpinner windowHeightSpinner = new JSpinner(new SpinnerNumberModel(480, 240, 4320, 1));
     @NotNull
     private final JSlider allocatedMemorySlider = new JSlider(
-            LauncherSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES,
-            LauncherSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES,
-            LauncherSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES
+            GameSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES,
+            GameSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES,
+            GameSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES
     );
     @NotNull
     private final JLabel allocatedMemoryValueLabel = new JLabel();
@@ -51,7 +51,7 @@ public final class GameSettingsControls extends JPanel {
     @NotNull
     private final JButton resetDefaultsButton = new JButton(Localization.text("settings.button.reset_defaults"));
     @NotNull
-    private LauncherSettings globalSettings = LauncherSettings.defaults();
+    private GameSettings globalSettings = GameSettings.defaults();
     @NotNull
     private Runnable changeListener = () -> {};
     private boolean controlsAvailable = true;
@@ -142,21 +142,21 @@ public final class GameSettingsControls extends JPanel {
         memoryControl.add(this.allocatedMemoryValueLabel, BorderLayout.NORTH);
         Hashtable<Integer, JComponent> memoryLabels = new Hashtable<>();
         memoryLabels.put(
-                LauncherSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES,
-                new JLabel(Integer.toString(LauncherSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES))
+                GameSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES,
+                new JLabel(Integer.toString(GameSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES))
         );
         memoryLabels.put(
-                LauncherSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES,
-                new JLabel(Integer.toString(LauncherSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES))
+                GameSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES,
+                new JLabel(Integer.toString(GameSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES))
         );
         memoryLabels.put(
-                LauncherSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES,
-                new JLabel(Integer.toString(LauncherSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES))
+                GameSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES,
+                new JLabel(Integer.toString(GameSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES))
         );
         this.allocatedMemorySlider.setLabelTable(memoryLabels);
         this.allocatedMemorySlider.setMajorTickSpacing(Math.max(
                 1,
-                LauncherSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES / 8
+                GameSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES / 8
         ));
         this.allocatedMemorySlider.setMinorTickSpacing(1);
         this.allocatedMemorySlider.setPaintTicks(true);
@@ -252,7 +252,7 @@ public final class GameSettingsControls extends JPanel {
         this.changeListener = changeListener;
     }
 
-    public void showGlobalSettings(@NotNull LauncherSettings settings) {
+    public void showGlobalSettings(@NotNull GameSettings settings) {
         this.updatingControls = true;
         this.globalSettings = settings;
         if (this.useDefaultWindowCheckBox != null) this.useDefaultWindowCheckBox.setSelected(false);
@@ -265,7 +265,7 @@ public final class GameSettingsControls extends JPanel {
 
     public void showInstanceSettings(
             @NotNull InstanceLaunchSettings settings,
-            @NotNull LauncherSettings globalSettings
+            @NotNull GameSettings globalSettings
     ) {
         if (this.useDefaultWindowCheckBox == null || this.useDefaultMemoryCheckBox == null) {
             throw new IllegalStateException("Instance settings require default selectors.");
@@ -297,7 +297,7 @@ public final class GameSettingsControls extends JPanel {
     public void resetToDefaults() {
         this.updatingControls = true;
         if (this.useDefaultWindowCheckBox == null || this.useDefaultMemoryCheckBox == null) {
-            LauncherSettings defaults = LauncherSettings.defaults();
+            GameSettings defaults = GameSettings.defaults();
             this.setWindowValues(defaults.fullscreen(), defaults.windowWidth(), defaults.windowHeight());
             this.setMemoryValues(defaults.allocatedMemoryGigabytes(), defaults.lowMemoryWarning());
         }

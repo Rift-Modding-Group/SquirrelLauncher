@@ -1,7 +1,7 @@
 package com.anightdazingzoroark.squirrellauncher.minecraft.instance;
 
 import com.anightdazingzoroark.squirrellauncher.SquirrelLauncher;
-import com.anightdazingzoroark.squirrellauncher.launcher.LauncherSettings;
+import com.anightdazingzoroark.squirrellauncher.launcher.GameSettings;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MinecraftAccount;
 import com.anightdazingzoroark.squirrellauncher.minecraft.install.AbstractInstaller;
 import com.anightdazingzoroark.squirrellauncher.minecraft.install.CleanroomInstaller;
@@ -58,7 +58,7 @@ public enum InstanceType {
     public Process launch(
             @NotNull MinecraftAccount account,
             @NotNull MinecraftInstance instance,
-            @NotNull LauncherSettings settings
+            @NotNull GameSettings settings
     ) throws Exception {
         Path installRoot = this.installer.install(this.versionResolver.apply(instance));
         LaunchDefinition definition = this.definitionFactory.create(instance, installRoot);

@@ -2,7 +2,7 @@ package com.anightdazingzoroark.squirrellauncher.ui.dialogs.settingsDialogTabs;
 
 import com.anightdazingzoroark.squirrellauncher.launcher.LauncherLanguage;
 import com.anightdazingzoroark.squirrellauncher.launcher.LauncherService;
-import com.anightdazingzoroark.squirrellauncher.launcher.LauncherSettings;
+import com.anightdazingzoroark.squirrellauncher.launcher.GameSettings;
 import com.anightdazingzoroark.squirrellauncher.ui.Localization;
 import org.jetbrains.annotations.NotNull;
 
@@ -82,9 +82,9 @@ public final class LauncherSettingsTab extends AbstractSettingsTab {
         this.languageSelector.addActionListener(event -> {
             LauncherLanguage selectedLanguage = (LauncherLanguage) this.languageSelector.getSelectedItem();
             if (selectedLanguage == null || selectedLanguage == launcherService.settings().language()) return;
-            LauncherSettings settings = launcherService.settings();
+            GameSettings settings = launcherService.settings();
             try {
-                launcherService.updateSettings(new LauncherSettings(
+                launcherService.updateSettings(new GameSettings(
                         settings.fullscreen(),
                         settings.windowWidth(),
                         settings.windowHeight(),

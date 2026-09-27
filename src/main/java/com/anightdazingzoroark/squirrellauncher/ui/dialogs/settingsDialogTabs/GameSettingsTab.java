@@ -1,7 +1,7 @@
 package com.anightdazingzoroark.squirrellauncher.ui.dialogs.settingsDialogTabs;
 
 import com.anightdazingzoroark.squirrellauncher.launcher.LauncherService;
-import com.anightdazingzoroark.squirrellauncher.launcher.LauncherSettings;
+import com.anightdazingzoroark.squirrellauncher.launcher.GameSettings;
 import com.anightdazingzoroark.squirrellauncher.ui.GameSettingsControls;
 import com.anightdazingzoroark.squirrellauncher.ui.Localization;
 import org.jetbrains.annotations.NotNull;
@@ -19,8 +19,8 @@ public final class GameSettingsTab extends AbstractSettingsTab {
     public GameSettingsTab(@NotNull LauncherService launcherService) {
         super(new BorderLayout(), launcherService);
         @NotNull Runnable saveSettings = () -> {
-            LauncherSettings savedSettings = this.launcherService.settings();
-            LauncherSettings settings = new LauncherSettings(
+            GameSettings savedSettings = this.launcherService.settings();
+            GameSettings settings = new GameSettings(
                     this.gameSettingsControls.fullscreen(),
                     this.gameSettingsControls.windowWidth(),
                     this.gameSettingsControls.windowHeight(),

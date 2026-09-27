@@ -13,15 +13,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
-/** Loads and atomically saves launcher settings. */
-public final class LauncherSettingsManager {
+/**
+ * Loads and atomically saves instance specific settings.
+ * */
+public final class GameSettingsManager {
     private static final int FORMAT_VERSION = 1;
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     @NotNull
-    private volatile LauncherSettings settings = LauncherSettings.defaults();
+    private volatile GameSettings settings = GameSettings.defaults();
 
-    public LauncherSettingsManager() {
+    public GameSettingsManager() {
         if (!Files.exists(MinecraftPaths.SETTINGS)) return;
         try {
             JsonObject root = JsonParser.parseString(Files.readString(MinecraftPaths.SETTINGS)).getAsJsonObject();
@@ -31,13 +33,13 @@ public final class LauncherSettingsManager {
             }
             int allocatedMemoryGigabytes = root.has("allocatedMemoryGigabytes")
                     ? root.get("allocatedMemoryGigabytes").getAsInt()
-                    : LauncherSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES;
+                    : GameSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES;
             allocatedMemoryGigabytes = Math.clamp(
                     allocatedMemoryGigabytes,
-                    LauncherSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES,
-                    LauncherSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES
+                    GameSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES,
+                    GameSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES
             );
-            this.settings = new LauncherSettings(
+            this.settings = new GameSettings(
                     root.has("fullscreen") && root.get("fullscreen").getAsBoolean(),
                     root.has("windowWidth") ? root.get("windowWidth").getAsInt() : 854,
                     root.has("windowHeight") ? root.get("windowHeight").getAsInt() : 480,
@@ -57,11 +59,11 @@ public final class LauncherSettingsManager {
     }
 
     @NotNull
-    public LauncherSettings settings() {
+    public GameSettings settings() {
         return this.settings;
     }
 
-    public synchronized void update(@NotNull LauncherSettings settings) throws IOException {
+    public synchronized void update(@NotNull GameSettings settings) throws IOException {
         JsonObject root = new JsonObject();
         root.addProperty("formatVersion", FORMAT_VERSION);
         root.addProperty("fullscreen", settings.fullscreen());
@@ -74,7 +76,7 @@ public final class LauncherSettingsManager {
         Path settingsFile = MinecraftPaths.SETTINGS;
         Files.createDirectories(settingsFile.getParent());
         Path temporaryFile = settingsFile.resolveSibling(settingsFile.getFileName() + ".tmp");
-        Files.writeString(temporaryFile, LauncherSettingsManager.GSON.toJson(root));
+        Files.writeString(temporaryFile, GameSettingsManager.GSON.toJson(root));
         try {
             Files.move(
                     temporaryFile,

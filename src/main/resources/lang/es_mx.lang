@@ -65,6 +65,7 @@ instance.settings.java.none_detected=No se detectó un entorno compatible de Jav
 instance.settings.java.detect_error=No se pudieron detectar entornos de Java
 instance.settings.java.invalid_runtime=No disponible: {0}
 instance.settings.use_default=Usar valores predeterminados
+instance.notes.placeholder=Escribe tus notas aquí...
 settings.game.low_memory_warning=Advertir cuando no haya suficiente memoria libre
 main.status.using_account=Usando {0}.
 main.activity.switched_account=Se cambió a {0}.

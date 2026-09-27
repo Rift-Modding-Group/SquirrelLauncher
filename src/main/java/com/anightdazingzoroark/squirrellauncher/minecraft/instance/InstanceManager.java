@@ -1,7 +1,7 @@
 package com.anightdazingzoroark.squirrellauncher.minecraft.instance;
 
 import com.anightdazingzoroark.squirrellauncher.SquirrelLauncher;
-import com.anightdazingzoroark.squirrellauncher.launcher.LauncherSettings;
+import com.anightdazingzoroark.squirrellauncher.launcher.GameSettings;
 import com.anightdazingzoroark.squirrellauncher.minecraft.InstallUtils;
 import com.anightdazingzoroark.squirrellauncher.minecraft.MinecraftPaths;
 import com.google.gson.Gson;
@@ -246,12 +246,12 @@ public final class InstanceManager {
         long memoryMegabytes = InstanceManager.nonNegativeLong(
                 config,
                 "MaxMemAlloc",
-                (long) LauncherSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES * 1024L
+                (long) GameSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES * 1024L
         );
         int allocatedMemoryGigabytes = (int) Math.clamp(
                 (memoryMegabytes + 1023L) / 1024L,
-                LauncherSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES,
-                LauncherSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES
+                GameSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES,
+                GameSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES
         );
         InstanceLaunchSettings launchSettings = new InstanceLaunchSettings(
                 javaExecutable,

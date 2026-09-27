@@ -1,7 +1,7 @@
 package com.anightdazingzoroark.squirrellauncher.minecraft.launch;
 
 import com.anightdazingzoroark.squirrellauncher.SquirrelLauncher;
-import com.anightdazingzoroark.squirrellauncher.launcher.LauncherSettings;
+import com.anightdazingzoroark.squirrellauncher.launcher.GameSettings;
 import com.anightdazingzoroark.squirrellauncher.minecraft.MinecraftPaths;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MinecraftAccount;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
@@ -24,7 +24,7 @@ public final class MinecraftLauncher {
             @NotNull LaunchDefinition definition,
             @NotNull MinecraftAccount account,
             @NotNull MinecraftInstance instance,
-            @NotNull LauncherSettings settings
+            @NotNull GameSettings settings
     ) throws Exception {
         //ensure integrity
         LibraryIntegrity.repair(definition.components());
