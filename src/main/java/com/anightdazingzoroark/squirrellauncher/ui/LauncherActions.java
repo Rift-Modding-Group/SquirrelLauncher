@@ -7,7 +7,6 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MinecraftAccount;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceLaunchSettings;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ManagedMod;
-import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModState;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntime;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntimeManager;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaVersion;
@@ -324,6 +323,30 @@ public final class LauncherActions {
         }
     }
 
+    public void openModsFolderRequested() {
+        MinecraftInstance instance = this.selectedInstance();
+        if (instance == null || !instance.type().hasMods) return;
+        Path modsDirectory = instance.modsDirectory();
+        try {
+            Files.createDirectories(modsDirectory);
+            if (!Desktop.isDesktopSupported()) {
+                throw new UnsupportedOperationException(Localization.text("main.error.file_explorer_unsupported"));
+            }
+            Desktop desktop = Desktop.getDesktop();
+            if (!desktop.isSupported(Desktop.Action.OPEN)) {
+                throw new UnsupportedOperationException(Localization.text("main.error.file_explorer_unsupported"));
+            }
+            desktop.open(modsDirectory.toFile());
+        }
+        catch (Exception exception) {
+            this.launcherFrame.showError(
+                    Localization.text("main.error.open_mods_folder"),
+                    exception,
+                    instance.id()
+            );
+        }
+    }
+
     public void exportRequested() {
         MinecraftInstance instance = this.selectedInstance();
         if (instance == null) return;
@@ -402,28 +425,51 @@ public final class LauncherActions {
         );
     }
 
-    public void toggleModRequested() {
+    public void setModEnabledRequested(@NotNull ManagedMod mod, boolean enable) {
         MinecraftInstance instance = this.selectedInstance();
-        ManagedMod mod = this.selectedMod();
-        if (instance == null || mod == null) return;
-        boolean enable = mod.state() == ModState.DISABLED;
-        this.launcherFrame.runTask(
-                instance.id(),
-                Localization.text(enable ? "main.status.enabling_mod" : "main.status.disabling_mod", mod.fileName()),
-                () -> {
-                    this.launcherService.setModEnabled(instance, mod, enable);
-                    return null;
-                },
-                ignored -> {
-                    this.launcherFrame.setStatus(Localization.text("main.status.ready"));
-                    this.refreshMods(instance);
+        if (instance == null) return;
+        this.detailsPanel().modsTab().setModTogglePending(mod.fileName(), true);
+        new SwingWorker<ManagedMod, Void>() {
+            @Override
+            @NotNull
+            protected ManagedMod doInBackground() throws Exception {
+                return LauncherActions.this.launcherService.setModEnabled(instance, mod, enable);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    ManagedMod updated = this.get();
+                    MinecraftInstance selectedInstance = LauncherActions.this.selectedInstance();
+                    if (selectedInstance != null && instance.id().equals(selectedInstance.id())) {
+                        LauncherActions.this.detailsPanel().modsTab().replaceMod(mod, updated);
+                    }
                 }
-        );
+                catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    LauncherActions.this.launcherFrame.showError(
+                            Localization.text("main.error.operation_interrupted"),
+                            exception,
+                            null
+                    );
+                }
+                catch (ExecutionException exception) {
+                    LauncherActions.this.launcherFrame.showError(
+                            Localization.text("main.error.operation_failed"),
+                            exception.getCause(),
+                            null
+                    );
+                }
+                finally {
+                    LauncherActions.this.detailsPanel().modsTab().setModTogglePending(mod.fileName(), false);
+                }
+            }
+        }.execute();
     }
 
     public void removeModRequested() {
         MinecraftInstance instance = this.selectedInstance();
-        ManagedMod mod = this.selectedMod();
+        ManagedMod mod = this.detailsPanel().modsTab().selectedMod();
         if (instance == null || mod == null) return;
         int choice = JOptionPane.showConfirmDialog(
                 this.launcherFrame,
@@ -558,11 +604,6 @@ public final class LauncherActions {
     @Nullable
     private MinecraftInstance selectedInstance() {
         return this.sidebarPanel().selectedInstance();
-    }
-
-    @Nullable
-    private ManagedMod selectedMod() {
-        return this.detailsPanel().modsTab().selectedMod();
     }
 
     private void refreshMods(@NotNull MinecraftInstance instance) {

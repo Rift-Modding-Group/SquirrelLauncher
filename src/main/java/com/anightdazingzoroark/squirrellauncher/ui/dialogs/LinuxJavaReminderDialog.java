@@ -51,8 +51,8 @@ public final class LinuxJavaReminderDialog extends JDialog {
         content.add(this.hideReminder, checkbox);
         this.add(content, BorderLayout.CENTER);
 
-        JButton cancelButton = new JButton(Localization.text("settings.java.linux_reminder.cancel"));
-        cancelButton.addActionListener(event -> this.dispose());
+        JButton okButton = new JButton(Localization.text("settings.java.linux_reminder.ok"));
+        okButton.addActionListener(event -> this.dispose());
         JButton vendorButton = new JButton(Localization.text("settings.java.linux_reminder.vendor"));
         vendorButton.addActionListener(event -> {
             this.downloadFromVendor = true;
@@ -60,7 +60,7 @@ public final class LinuxJavaReminderDialog extends JDialog {
         });
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         actions.setBorder(BorderFactory.createEmptyBorder(0, 10, 10, 10));
-        actions.add(cancelButton);
+        actions.add(okButton);
         actions.add(vendorButton);
         this.add(actions, BorderLayout.SOUTH);
 

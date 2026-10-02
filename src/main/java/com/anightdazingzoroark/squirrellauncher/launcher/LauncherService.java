@@ -470,10 +470,14 @@ public final class LauncherService implements AutoCloseable {
         new ModManager(instance).install(source);
     }
 
-    public void setModEnabled(@NotNull MinecraftInstance instance, @NotNull ManagedMod mod, boolean enabled) throws Exception {
+    @NotNull
+    public ManagedMod setModEnabled(
+            @NotNull MinecraftInstance instance,
+            @NotNull ManagedMod mod,
+            boolean enabled
+    ) throws Exception {
         ModManager manager = new ModManager(instance);
-        if (enabled) manager.enable(mod.fileName());
-        else manager.disable(mod.fileName());
+        return enabled ? manager.enable(mod.fileName()) : manager.disable(mod.fileName());
     }
 
     public void removeMod(@NotNull MinecraftInstance instance, @NotNull ManagedMod mod) throws Exception {
