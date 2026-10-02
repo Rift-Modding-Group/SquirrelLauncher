@@ -56,6 +56,14 @@ public final class LauncherActions {
     //---sidebar actions---
     public void selectionChanged() {
         MinecraftInstance instance = this.selectedInstance();
+        String displayedInstanceId = this.detailsPanel().instanceSettingsTab().displayedInstanceId();
+        if (instance != null
+                && displayedInstanceId != null
+                && !instance.id().equals(displayedInstanceId)
+                && !this.detailsPanel().confirmDiscardUnsavedChanges()) {
+            this.sidebarPanel().selectInstance(displayedInstanceId);
+            return;
+        }
         this.detailsPanel().modsTab().setMods(List.of());
         if (instance == null) {
             this.detailsPanel().showEmpty(!this.sidebarPanel().hasInstances());

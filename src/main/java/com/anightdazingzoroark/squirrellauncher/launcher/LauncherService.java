@@ -249,7 +249,9 @@ public final class LauncherService implements AutoCloseable {
                     settings.windowHeight(),
                     settings.overrideMemory(),
                     settings.allocatedMemoryGigabytes(),
-                    settings.lowMemoryWarning()
+                    settings.lowMemoryWarning(),
+                    settings.overrideJvmArguments(),
+                    settings.jvmArguments()
             );
         }
         Map<String, String> values = new LinkedHashMap<>();
@@ -264,9 +266,18 @@ public final class LauncherService implements AutoCloseable {
         values.put("MinecraftWinWidth", Integer.toString(validatedSettings.windowWidth()));
         values.put("MinecraftWinHeight", Integer.toString(validatedSettings.windowHeight()));
         values.put("OverrideMemory", Boolean.toString(validatedSettings.overrideMemory()));
-        values.put("MinMemAlloc", "512");
+        values.put(
+                "MinMemAlloc",
+                Integer.toString(JvmArguments.minimumMemoryMegabytes(validatedSettings.jvmArguments()))
+        );
         values.put("MaxMemAlloc", Integer.toString(validatedSettings.allocatedMemoryGigabytes() * 1024));
         values.put("LowMemWarning", Boolean.toString(validatedSettings.lowMemoryWarning()));
+        values.put("OverrideJavaArgs", Boolean.toString(validatedSettings.overrideJvmArguments()));
+        List<String> additionalJvmArguments = new ArrayList<>();
+        for (String argument : validatedSettings.jvmArguments()) {
+            if (!JvmArguments.isMemoryArgument(argument)) additionalJvmArguments.add(argument);
+        }
+        values.put("JvmArgs", JvmArguments.format(additionalJvmArguments));
         InstanceManager.setConfigValues(instance.directory(), values);
         return InstanceManager.load(instanceId);
     }

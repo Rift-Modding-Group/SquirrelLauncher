@@ -7,7 +7,7 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInst
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntime;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntimeManager;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaVersion;
-import com.anightdazingzoroark.squirrellauncher.ui.GameSettingsControls;
+import com.anightdazingzoroark.squirrellauncher.ui.settingsControls.GameSettingsControls;
 import com.anightdazingzoroark.squirrellauncher.ui.LauncherActions;
 import com.anightdazingzoroark.squirrellauncher.ui.Localization;
 import org.jetbrains.annotations.NotNull;
@@ -45,6 +45,10 @@ public final class InstanceSettingsTab extends JPanel {
     private final JButton detectJavaButton = new JButton(Localization.text("instance.settings.java.detect"));
     @NotNull
     private final JButton resetDefaultsButton = new JButton(Localization.text("settings.button.reset_defaults"));
+    @NotNull
+    private final JButton cancelJvmArgumentsButton = new JButton(Localization.text("settings.button.cancel"));
+    @NotNull
+    private final JButton saveJvmArgumentsButton = new JButton(Localization.text("settings.button.save"));
     @NotNull
     private final GameSettingsControls gameSettingsControls = new GameSettingsControls(true);
     @NotNull
@@ -102,11 +106,23 @@ public final class InstanceSettingsTab extends JPanel {
         form.add(this.gameSettingsControls, gameSettings);
         this.add(form, BorderLayout.CENTER);
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         actions.add(this.resetDefaultsButton);
+        actions.add(this.cancelJvmArgumentsButton);
+        actions.add(this.saveJvmArgumentsButton);
         this.add(actions, BorderLayout.SOUTH);
 
         this.gameSettingsControls.setChangeListener(this::scheduleSave);
+        this.gameSettingsControls.setAdvancedActionsAvailableListener(available -> {
+            this.cancelJvmArgumentsButton.setEnabled(available);
+            this.saveJvmArgumentsButton.setEnabled(available);
+        });
+        this.gameSettingsControls.setAdvancedDisplayedListener(displayed -> {
+            this.cancelJvmArgumentsButton.setVisible(displayed);
+            this.saveJvmArgumentsButton.setVisible(displayed);
+        });
+        this.cancelJvmArgumentsButton.addActionListener(event -> this.gameSettingsControls.cancelAdvancedChanges());
+        this.saveJvmArgumentsButton.addActionListener(event -> this.gameSettingsControls.saveAdvancedChanges());
         this.browseJavaButton.addActionListener(event -> {
             JFileChooser chooser = new JFileChooser();
             chooser.setDialogTitle(Localization.text("instance.settings.java.choose"));
@@ -212,6 +228,15 @@ public final class InstanceSettingsTab extends JPanel {
         this.updateControlState();
     }
 
+    public boolean confirmDiscardUnsavedChanges() {
+        return this.gameSettingsControls.confirmDiscardUnsavedChanges();
+    }
+
+    @Nullable
+    public String displayedInstanceId() {
+        return this.displayedInstanceId;
+    }
+
     private void updateControlState() {
         this.javaPathField.setEnabled(this.controlsAvailable);
         this.browseJavaButton.setEnabled(this.controlsAvailable);
@@ -230,7 +255,9 @@ public final class InstanceSettingsTab extends JPanel {
                 this.gameSettingsControls.windowHeight(),
                 this.gameSettingsControls.overrideMemory(),
                 this.gameSettingsControls.allocatedMemoryGigabytes(),
-                this.gameSettingsControls.lowMemoryWarning()
+                this.gameSettingsControls.lowMemoryWarning(),
+                this.gameSettingsControls.overrideJvmArguments(),
+                this.gameSettingsControls.jvmArguments()
         );
     }
 

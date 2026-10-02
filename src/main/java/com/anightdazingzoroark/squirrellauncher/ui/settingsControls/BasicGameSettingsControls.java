@@ -1,35 +1,42 @@
-package com.anightdazingzoroark.squirrellauncher.ui;
+package com.anightdazingzoroark.squirrellauncher.ui.settingsControls;
 
 import com.anightdazingzoroark.squirrellauncher.launcher.GameSettings;
+import com.anightdazingzoroark.squirrellauncher.launcher.GarbageCollector;
+import com.anightdazingzoroark.squirrellauncher.launcher.JvmArguments;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceLaunchSettings;
+import com.anightdazingzoroark.squirrellauncher.ui.Localization;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.BorderFactory;
-import javax.swing.JButton;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JSlider;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.util.Hashtable;
+import java.util.List;
 
-//widgets used in SettingsDialog and InstanceSettingsTab
-public final class GameSettingsControls extends JPanel {
+public final class BasicGameSettingsControls extends JPanel {
     @Nullable
     private final JCheckBox useDefaultWindowCheckBox;
     @Nullable
     private final JCheckBox useDefaultMemoryCheckBox;
+    @Nullable
+    private final JCheckBox useDefaultJvmCheckBox;
     @NotNull
     private final JCheckBox fullscreenCheckBox = new JCheckBox(Localization.text("settings.game.fullscreen"));
     @NotNull
@@ -49,7 +56,12 @@ public final class GameSettingsControls extends JPanel {
             Localization.text("settings.game.low_memory_warning")
     );
     @NotNull
-    private final JButton resetDefaultsButton = new JButton(Localization.text("settings.button.reset_defaults"));
+    private final JComboBox<GarbageCollector> garbageCollectorSelector = new JComboBox<>(new GarbageCollector[] {
+            GarbageCollector.DEFAULT,
+            GarbageCollector.G1,
+            GarbageCollector.PARALLEL,
+            GarbageCollector.SERIAL
+    });
     @NotNull
     private GameSettings globalSettings = GameSettings.defaults();
     @NotNull
@@ -57,12 +69,16 @@ public final class GameSettingsControls extends JPanel {
     private boolean controlsAvailable = true;
     private boolean updatingControls;
 
-    public GameSettingsControls(boolean showDefaultSelectors) {
+    public BasicGameSettingsControls(boolean showDefaultSelectors) {
         super(new GridBagLayout());
+        this.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         this.useDefaultWindowCheckBox = showDefaultSelectors
                 ? new JCheckBox(Localization.text("instance.settings.use_default"))
                 : null;
         this.useDefaultMemoryCheckBox = showDefaultSelectors
+                ? new JCheckBox(Localization.text("instance.settings.use_default"))
+                : null;
+        this.useDefaultJvmCheckBox = showDefaultSelectors
                 ? new JCheckBox(Localization.text("instance.settings.use_default"))
                 : null;
 
@@ -73,60 +89,40 @@ public final class GameSettingsControls extends JPanel {
         ));
         int windowRow = 0;
         if (this.useDefaultWindowCheckBox != null) {
-            GridBagConstraints useDefaultWindow = new GridBagConstraints();
-            useDefaultWindow.gridx = 0;
-            useDefaultWindow.gridy = windowRow++;
-            useDefaultWindow.gridwidth = 2;
+            GridBagConstraints useDefaultWindow = this.constraints(
+                    0, windowRow++, 2, 0, GridBagConstraints.NONE
+            );
             useDefaultWindow.anchor = GridBagConstraints.LINE_START;
             useDefaultWindow.insets = new Insets(0, 0, 10, 0);
             windowPanel.add(this.useDefaultWindowCheckBox, useDefaultWindow);
         }
-
-        GridBagConstraints fullscreen = new GridBagConstraints();
-        fullscreen.gridx = 0;
-        fullscreen.gridy = windowRow++;
-        fullscreen.gridwidth = 2;
+        GridBagConstraints fullscreen = this.constraints(0, windowRow++, 2, 0, GridBagConstraints.NONE);
         fullscreen.anchor = GridBagConstraints.LINE_START;
         fullscreen.insets = new Insets(0, 0, 8, 0);
         windowPanel.add(this.fullscreenCheckBox, fullscreen);
 
-        GridBagConstraints widthLabel = new GridBagConstraints();
-        widthLabel.gridx = 0;
-        widthLabel.gridy = windowRow;
+        GridBagConstraints widthLabel = this.constraints(0, windowRow, 1, 0, GridBagConstraints.NONE);
         widthLabel.anchor = GridBagConstraints.LINE_START;
         widthLabel.insets = new Insets(4, 0, 4, 12);
         windowPanel.add(new JLabel(Localization.text("settings.game.width")), widthLabel);
-        GridBagConstraints width = new GridBagConstraints();
-        width.gridx = 1;
-        width.gridy = windowRow++;
+        GridBagConstraints width = this.constraints(1, windowRow++, 1, 0, GridBagConstraints.NONE);
         width.weightx = 1;
         width.anchor = GridBagConstraints.LINE_START;
         width.insets = new Insets(4, 0, 4, 0);
         this.windowWidthSpinner.setPreferredSize(new Dimension(110, 28));
         windowPanel.add(this.windowWidthSpinner, width);
 
-        GridBagConstraints heightLabel = new GridBagConstraints();
-        heightLabel.gridx = 0;
-        heightLabel.gridy = windowRow;
+        GridBagConstraints heightLabel = this.constraints(0, windowRow, 1, 0, GridBagConstraints.NONE);
         heightLabel.anchor = GridBagConstraints.LINE_START;
         heightLabel.insets = new Insets(4, 0, 4, 12);
         windowPanel.add(new JLabel(Localization.text("settings.game.height")), heightLabel);
-        GridBagConstraints height = new GridBagConstraints();
-        height.gridx = 1;
-        height.gridy = windowRow;
+        GridBagConstraints height = this.constraints(1, windowRow, 1, 0, GridBagConstraints.NONE);
         height.weightx = 1;
         height.anchor = GridBagConstraints.LINE_START;
         height.insets = new Insets(4, 0, 4, 0);
         this.windowHeightSpinner.setPreferredSize(new Dimension(110, 28));
         windowPanel.add(this.windowHeightSpinner, height);
-
-        GridBagConstraints window = new GridBagConstraints();
-        window.gridx = 0;
-        window.gridy = 0;
-        window.weightx = 1;
-        window.fill = GridBagConstraints.HORIZONTAL;
-        window.insets = new Insets(0, 0, 12, 0);
-        this.add(windowPanel, window);
+        this.add(windowPanel, this.constraints(0, 0, 1, 0, GridBagConstraints.HORIZONTAL));
 
         JPanel memoryPanel = new JPanel(new BorderLayout(0, 6));
         memoryPanel.setBorder(BorderFactory.createCompoundBorder(
@@ -166,34 +162,60 @@ public final class GameSettingsControls extends JPanel {
         memoryControl.add(this.allocatedMemorySlider, BorderLayout.CENTER);
         memoryControl.add(this.lowMemoryWarningCheckBox, BorderLayout.SOUTH);
         memoryPanel.add(memoryControl, BorderLayout.CENTER);
+        this.add(memoryPanel, this.constraints(0, 1, 1, 0, GridBagConstraints.HORIZONTAL));
 
-        GridBagConstraints memory = new GridBagConstraints();
-        memory.gridx = 0;
-        memory.gridy = 1;
-        memory.weightx = 1;
-        memory.fill = GridBagConstraints.HORIZONTAL;
-        this.add(memoryPanel, memory);
-
-        int nextRow = 2;
-        GridBagConstraints filler = new GridBagConstraints();
-        filler.gridx = 0;
-        filler.gridy = nextRow++;
-        filler.weighty = 1;
-        filler.fill = GridBagConstraints.VERTICAL;
-        this.add(new JPanel(), filler);
-
-        if (!showDefaultSelectors) {
-            JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-            actions.add(this.resetDefaultsButton);
-            GridBagConstraints resetDefaults = new GridBagConstraints();
-            resetDefaults.gridx = 0;
-            resetDefaults.gridy = nextRow;
-            resetDefaults.weightx = 1;
-            resetDefaults.fill = GridBagConstraints.HORIZONTAL;
-            resetDefaults.insets = new Insets(12, 0, 0, 0);
-            this.add(actions, resetDefaults);
+        JPanel garbageCollectorPanel = new JPanel(new GridBagLayout());
+        garbageCollectorPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createTitledBorder(Localization.text("settings.game.garbage_collector")),
+                BorderFactory.createEmptyBorder(4, 10, 8, 10)
+        ));
+        int garbageCollectorRow = 0;
+        if (this.useDefaultJvmCheckBox != null) {
+            GridBagConstraints useDefaultJvm = this.constraints(
+                    0, garbageCollectorRow++, 2, 0, GridBagConstraints.HORIZONTAL
+            );
+            useDefaultJvm.anchor = GridBagConstraints.LINE_START;
+            useDefaultJvm.insets = new Insets(0, 0, 8, 0);
+            garbageCollectorPanel.add(this.useDefaultJvmCheckBox, useDefaultJvm);
         }
-
+        GridBagConstraints garbageCollectorLabel = this.constraints(
+                0, garbageCollectorRow, 1, 0, GridBagConstraints.NONE
+        );
+        garbageCollectorLabel.anchor = GridBagConstraints.LINE_START;
+        garbageCollectorLabel.insets = new Insets(4, 0, 4, 12);
+        garbageCollectorPanel.add(
+                new JLabel(Localization.text("settings.game.garbage_collector.choice")),
+                garbageCollectorLabel
+        );
+        GridBagConstraints garbageCollector = this.constraints(
+                1, garbageCollectorRow, 1, 0, GridBagConstraints.HORIZONTAL
+        );
+        garbageCollector.weightx = 1;
+        this.garbageCollectorSelector.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            @NotNull
+            public Component getListCellRendererComponent(
+                    @NotNull JList<?> list,
+                    @Nullable Object value,
+                    int index,
+                    boolean selected,
+                    boolean focused
+            ) {
+                JLabel renderer = (JLabel) super.getListCellRendererComponent(
+                        list, value, index, selected, focused
+                );
+                if (value instanceof GarbageCollector selectedCollector) {
+                    renderer.setText(Localization.text(
+                            "settings.game.garbage_collector."
+                                    + selectedCollector.name().toLowerCase(java.util.Locale.ROOT)
+                    ));
+                }
+                return renderer;
+            }
+        });
+        garbageCollectorPanel.add(this.garbageCollectorSelector, garbageCollector);
+        this.add(garbageCollectorPanel, this.constraints(0, 2, 1, 0, GridBagConstraints.HORIZONTAL));
+        this.add(new JPanel(), this.constraints(0, 3, 1, 1, GridBagConstraints.VERTICAL));
         if (this.useDefaultWindowCheckBox != null) {
             this.useDefaultWindowCheckBox.addActionListener(event -> {
                 if (this.updatingControls) return;
@@ -221,6 +243,14 @@ public final class GameSettingsControls extends JPanel {
                 this.changeListener.run();
             });
         }
+        if (this.useDefaultJvmCheckBox != null) {
+            this.useDefaultJvmCheckBox.addActionListener(event -> {
+                if (this.updatingControls) return;
+                if (this.useDefaultJvmCheckBox.isSelected()) this.setJvmArguments(this.globalSettings.jvmArguments());
+                this.updateControlState();
+                this.changeListener.run();
+            });
+        }
         this.fullscreenCheckBox.addActionListener(event -> {
             if (this.updatingControls) return;
             this.updateControlState();
@@ -244,7 +274,9 @@ public final class GameSettingsControls extends JPanel {
         this.lowMemoryWarningCheckBox.addActionListener(event -> {
             if (!this.updatingControls) this.changeListener.run();
         });
-        this.resetDefaultsButton.addActionListener(event -> this.resetToDefaults());
+        this.garbageCollectorSelector.addActionListener(event -> {
+            if (!this.updatingControls) this.changeListener.run();
+        });
         this.showGlobalSettings(this.globalSettings);
     }
 
@@ -257,8 +289,10 @@ public final class GameSettingsControls extends JPanel {
         this.globalSettings = settings;
         if (this.useDefaultWindowCheckBox != null) this.useDefaultWindowCheckBox.setSelected(false);
         if (this.useDefaultMemoryCheckBox != null) this.useDefaultMemoryCheckBox.setSelected(false);
+        if (this.useDefaultJvmCheckBox != null) this.useDefaultJvmCheckBox.setSelected(false);
         this.setWindowValues(settings.fullscreen(), settings.windowWidth(), settings.windowHeight());
         this.setMemoryValues(settings.allocatedMemoryGigabytes(), settings.lowMemoryWarning());
+        this.setJvmArguments(settings.jvmArguments());
         this.updatingControls = false;
         this.updateControlState();
     }
@@ -267,13 +301,16 @@ public final class GameSettingsControls extends JPanel {
             @NotNull InstanceLaunchSettings settings,
             @NotNull GameSettings globalSettings
     ) {
-        if (this.useDefaultWindowCheckBox == null || this.useDefaultMemoryCheckBox == null) {
+        if (this.useDefaultWindowCheckBox == null
+                || this.useDefaultMemoryCheckBox == null
+                || this.useDefaultJvmCheckBox == null) {
             throw new IllegalStateException("Instance settings require default selectors.");
         }
         this.updatingControls = true;
         this.globalSettings = globalSettings;
         this.useDefaultWindowCheckBox.setSelected(!settings.overrideWindowSettings());
         this.useDefaultMemoryCheckBox.setSelected(!settings.overrideMemory());
+        this.useDefaultJvmCheckBox.setSelected(!settings.overrideJvmArguments());
         this.setWindowValues(
                 settings.overrideWindowSettings() ? settings.fullscreen() : globalSettings.fullscreen(),
                 settings.overrideWindowSettings() ? settings.windowWidth() : globalSettings.windowWidth(),
@@ -285,6 +322,7 @@ public final class GameSettingsControls extends JPanel {
                         : globalSettings.allocatedMemoryGigabytes(),
                 settings.overrideMemory() ? settings.lowMemoryWarning() : globalSettings.lowMemoryWarning()
         );
+        this.setJvmArguments(settings.overrideJvmArguments() ? settings.jvmArguments() : globalSettings.jvmArguments());
         this.updatingControls = false;
         this.updateControlState();
     }
@@ -296,14 +334,18 @@ public final class GameSettingsControls extends JPanel {
 
     public void resetToDefaults() {
         this.updatingControls = true;
-        if (this.useDefaultWindowCheckBox == null || this.useDefaultMemoryCheckBox == null) {
+        if (this.useDefaultWindowCheckBox == null
+                || this.useDefaultMemoryCheckBox == null
+                || this.useDefaultJvmCheckBox == null) {
             GameSettings defaults = GameSettings.defaults();
             this.setWindowValues(defaults.fullscreen(), defaults.windowWidth(), defaults.windowHeight());
             this.setMemoryValues(defaults.allocatedMemoryGigabytes(), defaults.lowMemoryWarning());
+            this.setJvmArguments(defaults.jvmArguments());
         }
         else {
             this.useDefaultWindowCheckBox.setSelected(true);
             this.useDefaultMemoryCheckBox.setSelected(true);
+            this.useDefaultJvmCheckBox.setSelected(true);
             this.setWindowValues(
                     this.globalSettings.fullscreen(),
                     this.globalSettings.windowWidth(),
@@ -313,10 +355,24 @@ public final class GameSettingsControls extends JPanel {
                     this.globalSettings.allocatedMemoryGigabytes(),
                     this.globalSettings.lowMemoryWarning()
             );
+            this.setJvmArguments(this.globalSettings.jvmArguments());
         }
         this.updatingControls = false;
         this.updateControlState();
         this.changeListener.run();
+    }
+
+    public void applyAdvancedArguments(@NotNull List<String> arguments) {
+        this.updatingControls = true;
+        if (this.useDefaultMemoryCheckBox != null) this.useDefaultMemoryCheckBox.setSelected(false);
+        if (this.useDefaultJvmCheckBox != null) this.useDefaultJvmCheckBox.setSelected(false);
+        this.setMemoryValues(
+                JvmArguments.maximumMemoryGigabytes(arguments),
+                this.lowMemoryWarningCheckBox.isSelected()
+        );
+        this.setJvmArguments(arguments);
+        this.updatingControls = false;
+        this.updateControlState();
     }
 
     public boolean overrideWindowSettings() {
@@ -347,6 +403,28 @@ public final class GameSettingsControls extends JPanel {
         return this.lowMemoryWarningCheckBox.isSelected();
     }
 
+    public boolean overrideJvmArguments() {
+        return this.useDefaultJvmCheckBox == null || !this.useDefaultJvmCheckBox.isSelected();
+    }
+
+    public void setUseDefaultJvmArguments(boolean useDefaults) {
+        if (this.useDefaultJvmCheckBox == null) {
+            if (useDefaults) throw new IllegalStateException("Global settings cannot use inherited JVM arguments.");
+            return;
+        }
+        this.updatingControls = true;
+        this.useDefaultJvmCheckBox.setSelected(useDefaults);
+        if (useDefaults) this.setJvmArguments(this.globalSettings.jvmArguments());
+        this.updatingControls = false;
+        this.updateControlState();
+    }
+
+    @NotNull
+    public GarbageCollector garbageCollector() {
+        GarbageCollector selected = (GarbageCollector) this.garbageCollectorSelector.getSelectedItem();
+        return selected == null ? GarbageCollector.DEFAULT : selected;
+    }
+
     private void setWindowValues(boolean fullscreen, int width, int height) {
         boolean previousUpdating = this.updatingControls;
         this.updatingControls = true;
@@ -368,16 +446,43 @@ public final class GameSettingsControls extends JPanel {
         this.updatingControls = previousUpdating;
     }
 
+    private void setJvmArguments(@NotNull List<String> arguments) {
+        boolean previousUpdating = this.updatingControls;
+        this.updatingControls = true;
+        for (GarbageCollector garbageCollector : GarbageCollector.values()) {
+            if (!garbageCollector.matches(arguments)) continue;
+            this.garbageCollectorSelector.setSelectedItem(garbageCollector);
+            break;
+        }
+        this.updatingControls = previousUpdating;
+    }
+
     private void updateControlState() {
         boolean customWindow = this.controlsAvailable && this.overrideWindowSettings();
         boolean customMemory = this.controlsAvailable && this.overrideMemory();
+        boolean customJvmArguments = this.controlsAvailable && this.overrideJvmArguments();
         if (this.useDefaultWindowCheckBox != null) this.useDefaultWindowCheckBox.setEnabled(this.controlsAvailable);
         if (this.useDefaultMemoryCheckBox != null) this.useDefaultMemoryCheckBox.setEnabled(this.controlsAvailable);
+        if (this.useDefaultJvmCheckBox != null) this.useDefaultJvmCheckBox.setEnabled(this.controlsAvailable);
         this.fullscreenCheckBox.setEnabled(customWindow);
         this.windowWidthSpinner.setEnabled(customWindow && !this.fullscreenCheckBox.isSelected());
         this.windowHeightSpinner.setEnabled(customWindow && !this.fullscreenCheckBox.isSelected());
         this.allocatedMemorySlider.setEnabled(customMemory);
         this.lowMemoryWarningCheckBox.setEnabled(customMemory);
-        this.resetDefaultsButton.setEnabled(this.controlsAvailable);
+        this.garbageCollectorSelector.setEnabled(customJvmArguments);
+    }
+
+    @NotNull
+    private GridBagConstraints constraints(int x, int y, int width, double weightY, int fill) {
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.gridx = x;
+        constraints.gridy = y;
+        constraints.gridwidth = width;
+        constraints.weightx = 1;
+        constraints.weighty = weightY;
+        constraints.fill = fill;
+        constraints.anchor = GridBagConstraints.FIRST_LINE_START;
+        constraints.insets = new Insets(0, 0, 12, 0);
+        return constraints;
     }
 }

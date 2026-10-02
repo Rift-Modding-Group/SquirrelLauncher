@@ -3,6 +3,7 @@ package com.anightdazingzoroark.squirrellauncher.launcher;
 import org.jetbrains.annotations.NotNull;
 
 import java.lang.management.ManagementFactory;
+import java.util.List;
 
 /**
  * Settings that affect game instances
@@ -13,6 +14,7 @@ public record GameSettings(
         int windowHeight,
         int allocatedMemoryGigabytes,
         boolean lowMemoryWarning,
+        @NotNull List<String> jvmArguments,
         @NotNull LauncherLanguage language
 ) {
     public static final int MINIMUM_ALLOCATED_MEMORY_GIGABYTES = 1;
@@ -40,6 +42,7 @@ public record GameSettings(
     }
 
     public GameSettings {
+        jvmArguments = List.copyOf(jvmArguments);
         if (windowWidth < 320 || windowWidth > 7680) {
             throw new IllegalArgumentException("Game window width must be between 320 and 7680 pixels.");
         }
@@ -53,6 +56,12 @@ public record GameSettings(
                             + GameSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES + " GB."
             );
         }
+        if (JvmArguments.maximumMemoryGigabytes(jvmArguments) != allocatedMemoryGigabytes) {
+            throw new IllegalArgumentException("The -Xmx argument must match the allocated memory setting.");
+        }
+        if (JvmArguments.minimumMemoryMegabytes(jvmArguments) > (long) allocatedMemoryGigabytes * 1024L) {
+            throw new IllegalArgumentException("Initial JVM memory cannot exceed maximum JVM memory.");
+        }
     }
 
     @NotNull
@@ -63,6 +72,7 @@ public record GameSettings(
                 480,
                 GameSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES,
                 true,
+                JvmArguments.withMemory(List.of(), 512, GameSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES),
                 LauncherLanguage.systemDefault()
         );
     }

@@ -2,6 +2,7 @@ package com.anightdazingzoroark.squirrellauncher.minecraft.launch;
 
 import com.anightdazingzoroark.squirrellauncher.SquirrelLauncher;
 import com.anightdazingzoroark.squirrellauncher.launcher.GameSettings;
+import com.anightdazingzoroark.squirrellauncher.launcher.JvmArguments;
 import com.anightdazingzoroark.squirrellauncher.minecraft.MinecraftPaths;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MinecraftAccount;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
@@ -64,16 +65,22 @@ public final class MinecraftLauncher {
 
         List<String> command = new ArrayList<>();
         command.add(runtime.executable().toString());
-        command.add("-Xms512M");
         command.add("-Djava.library.path=" + nativesDir.toAbsolutePath());
         command.add("-Dminecraft.launcher.brand=" + SquirrelLauncher.NAME);
         command.add("-Dminecraft.launcher.version=0.1");
         //component-provided JVM args
         command.addAll(plan.jvmArguments());
-        int allocatedMemoryGigabytes = instanceSettings.overrideMemory()
-                ? instanceSettings.allocatedMemoryGigabytes()
-                : settings.allocatedMemoryGigabytes();
-        command.add("-Xmx" + allocatedMemoryGigabytes + "G");
+        List<String> configuredJvmArguments = instanceSettings.overrideJvmArguments()
+                ? instanceSettings.jvmArguments()
+                : settings.jvmArguments();
+        List<String> memorySettings = instanceSettings.overrideMemory()
+                ? instanceSettings.jvmArguments()
+                : settings.jvmArguments();
+        command.addAll(JvmArguments.withMemory(
+                configuredJvmArguments,
+                JvmArguments.minimumMemoryMegabytes(memorySettings),
+                JvmArguments.maximumMemoryGigabytes(memorySettings)
+        ));
         command.add("-cp");
         command.add(classpath);
         command.add(plan.mainClass());

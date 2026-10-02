@@ -2,6 +2,7 @@ package com.anightdazingzoroark.squirrellauncher.minecraft.instance;
 
 import com.anightdazingzoroark.squirrellauncher.SquirrelLauncher;
 import com.anightdazingzoroark.squirrellauncher.launcher.GameSettings;
+import com.anightdazingzoroark.squirrellauncher.launcher.JvmArguments;
 import com.anightdazingzoroark.squirrellauncher.minecraft.InstallUtils;
 import com.anightdazingzoroark.squirrellauncher.minecraft.MinecraftPaths;
 import com.google.gson.Gson;
@@ -253,6 +254,16 @@ public final class InstanceManager {
                 GameSettings.MINIMUM_ALLOCATED_MEMORY_GIGABYTES,
                 GameSettings.MAXIMUM_ALLOCATED_MEMORY_GIGABYTES
         );
+        int minimumMemoryMegabytes = (int) Math.clamp(
+                InstanceManager.nonNegativeLong(config, "MinMemAlloc", 512),
+                1,
+                (long) allocatedMemoryGigabytes * 1024L
+        );
+        List<String> jvmArguments = JvmArguments.withMemory(
+                JvmArguments.parse(config.getProperty("JvmArgs", "")),
+                minimumMemoryMegabytes,
+                allocatedMemoryGigabytes
+        );
         InstanceLaunchSettings launchSettings = new InstanceLaunchSettings(
                 javaExecutable,
                 overrideWindow,
@@ -261,7 +272,9 @@ public final class InstanceManager {
                 windowHeight,
                 overrideMemory,
                 allocatedMemoryGigabytes,
-                InstanceManager.booleanValue(config, "LowMemWarning", true)
+                InstanceManager.booleanValue(config, "LowMemWarning", true),
+                InstanceManager.booleanValue(config, "OverrideJavaArgs", false),
+                jvmArguments
         );
         String notes = config.getProperty("notes", "");
 

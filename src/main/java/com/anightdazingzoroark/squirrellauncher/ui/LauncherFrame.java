@@ -94,7 +94,7 @@ public final class LauncherFrame extends JFrame {
         this.instanceDetailsPanel = new InstanceDetailsPanel(this.launcherActions);
         this.launcherActions.connectPanels(this.instanceSidebarPanel, this.instanceDetailsPanel);
 
-        this.setDefaultCloseOperation(EXIT_ON_CLOSE);
+        this.setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         this.setMinimumSize(new Dimension(820, 560));
         this.setExtendedState(JFrame.MAXIMIZED_BOTH);
         this.setLocationByPlatform(true);
@@ -119,7 +119,9 @@ public final class LauncherFrame extends JFrame {
         this.addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(@NotNull WindowEvent event) {
+                if (!LauncherFrame.this.instanceDetailsPanel.confirmDiscardUnsavedChanges()) return;
                 LauncherFrame.this.launcherService.close();
+                LauncherFrame.this.dispose();
             }
         });
         this.accountSelector.addActionListener(event -> {

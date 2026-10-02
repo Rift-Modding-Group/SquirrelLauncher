@@ -131,6 +131,10 @@ public final class InstanceDetailsPanel extends JPanel {
         return this.instanceSettingsTab;
     }
 
+    public boolean confirmDiscardUnsavedChanges() {
+        return this.instanceSettingsTab.confirmDiscardUnsavedChanges();
+    }
+
     public void showEmpty(boolean noInstances) {
         this.emptyInstanceMessage.setText(Localization.text(
                 noInstances ? "main.instances.empty" : "main.instances.no_matches"

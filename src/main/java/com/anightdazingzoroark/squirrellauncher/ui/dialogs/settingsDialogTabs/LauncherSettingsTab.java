@@ -90,6 +90,7 @@ public final class LauncherSettingsTab extends AbstractSettingsTab {
                         settings.windowHeight(),
                         settings.allocatedMemoryGigabytes(),
                         settings.lowMemoryWarning(),
+                        settings.jvmArguments(),
                         selectedLanguage
                 ));
             }
