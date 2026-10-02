@@ -1,5 +1,7 @@
 package com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels.instanceDetailsTabs;
 
+import com.anightdazingzoroark.squirrellauncher.ui.Localization;
+import com.anightdazingzoroark.squirrellauncher.ui.custom.JTextAreaPlaceholderable;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -22,7 +24,7 @@ public final class InstanceActivityTab extends JPanel {
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     @NotNull
-    private final JTextArea activityArea = new JTextArea();
+    private final JTextArea activityArea = new JTextAreaPlaceholderable(Localization.text("activity.log.placeholder"));
     @NotNull
     private final Map<String, StringBuilder> instanceActivityLogs = new HashMap<>();
     @Nullable

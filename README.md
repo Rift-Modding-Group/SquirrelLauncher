@@ -7,6 +7,7 @@ A Minecraft 1.12.2 launcher and only 1.12.2. Checklist:
 * [X] MultiMC/Prism instance storage, import, and export
 * [X] Settings section
 * [X] Localization
+* [ ] Java version management and installing
 * [ ] Built-in updater
 * [ ] Built-in [Pack Companion](https://github.com/AnasDevO/PackTemplateCompanion)
 * [ ] Built-in [Crash Assistant](https://www.curseforge.com/minecraft/mc-mods/crash-assistant)

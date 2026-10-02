@@ -53,6 +53,7 @@ main.tab.mods=Mods
 main.tab.activity=Actividad
 main.tab.settings=Configuración
 main.tab.notes=Notas
+activity.log.placeholder=Actividad de la instancia se registrará aquí...
 instance.settings.java.heading=Entorno de Java
 instance.settings.java.browse=Examinar…
 instance.settings.java.detect=Detectar
