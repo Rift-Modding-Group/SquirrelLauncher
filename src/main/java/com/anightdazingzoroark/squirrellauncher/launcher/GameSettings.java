@@ -3,6 +3,7 @@ package com.anightdazingzoroark.squirrellauncher.launcher;
 import org.jetbrains.annotations.NotNull;
 
 import java.lang.management.ManagementFactory;
+import java.nio.file.Path;
 import java.util.List;
 
 /**
@@ -16,7 +17,9 @@ public record GameSettings(
         boolean lowMemoryWarning,
         @NotNull List<String> jvmArguments,
         @NotNull LauncherLanguage language,
-        @NotNull LaunchBehavior launchBehavior
+        @NotNull LaunchBehavior launchBehavior,
+        boolean showLinuxJavaPackageManagerReminder,
+        @NotNull List<Path> javaRuntimePaths
 ) {
     public static final int MINIMUM_ALLOCATED_MEMORY_GIGABYTES = 1;
     public static final int MAXIMUM_ALLOCATED_MEMORY_GIGABYTES;
@@ -44,6 +47,10 @@ public record GameSettings(
 
     public GameSettings {
         jvmArguments = List.copyOf(jvmArguments);
+        javaRuntimePaths = javaRuntimePaths.stream()
+                .map(path -> path.toAbsolutePath().normalize())
+                .distinct()
+                .toList();
         if (windowWidth < 320 || windowWidth > 7680) {
             throw new IllegalArgumentException("Game window width must be between 320 and 7680 pixels.");
         }
@@ -75,7 +82,9 @@ public record GameSettings(
                 true,
                 JvmArguments.withMemory(List.of(), 512, GameSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES),
                 LauncherLanguage.systemDefault(),
-                LaunchBehavior.DO_NOTHING
+                LaunchBehavior.DO_NOTHING,
+                true,
+                List.of()
         );
     }
 }

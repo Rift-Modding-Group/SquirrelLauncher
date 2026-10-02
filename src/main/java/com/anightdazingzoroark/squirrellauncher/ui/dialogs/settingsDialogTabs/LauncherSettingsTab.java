@@ -172,7 +172,9 @@ public final class LauncherSettingsTab extends AbstractSettingsTab {
                 savedSettings.lowMemoryWarning(),
                 savedSettings.jvmArguments(),
                 selectedLanguage,
-                selectedLaunchBehavior
+                selectedLaunchBehavior,
+                savedSettings.showLinuxJavaPackageManagerReminder(),
+                savedSettings.javaRuntimePaths()
         );
         if (settings.equals(savedSettings)) return;
         try {

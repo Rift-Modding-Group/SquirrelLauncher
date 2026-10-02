@@ -88,6 +88,43 @@ public final class LauncherService implements AutoCloseable {
         this.settingsManager.update(settings);
     }
 
+    public void dismissLinuxJavaPackageManagerReminder() throws Exception {
+        GameSettings savedSettings = this.settingsManager.settings();
+        if (!savedSettings.showLinuxJavaPackageManagerReminder()) return;
+        this.settingsManager.update(new GameSettings(
+                savedSettings.fullscreen(),
+                savedSettings.windowWidth(),
+                savedSettings.windowHeight(),
+                savedSettings.allocatedMemoryGigabytes(),
+                savedSettings.lowMemoryWarning(),
+                savedSettings.jvmArguments(),
+                savedSettings.language(),
+                savedSettings.launchBehavior(),
+                false,
+                savedSettings.javaRuntimePaths()
+        ));
+    }
+
+    public void addJavaRuntime(@NotNull Path executable) throws Exception {
+        GameSettings savedSettings = this.settingsManager.settings();
+        Path normalizedExecutable = executable.toAbsolutePath().normalize();
+        if (savedSettings.javaRuntimePaths().contains(normalizedExecutable)) return;
+        List<Path> javaRuntimePaths = new ArrayList<>(savedSettings.javaRuntimePaths());
+        javaRuntimePaths.add(normalizedExecutable);
+        this.settingsManager.update(new GameSettings(
+                savedSettings.fullscreen(),
+                savedSettings.windowWidth(),
+                savedSettings.windowHeight(),
+                savedSettings.allocatedMemoryGigabytes(),
+                savedSettings.lowMemoryWarning(),
+                savedSettings.jvmArguments(),
+                savedSettings.language(),
+                savedSettings.launchBehavior(),
+                savedSettings.showLinuxJavaPackageManagerReminder(),
+                javaRuntimePaths
+        ));
+    }
+
     @Nullable
     public LowMemoryWarning lowMemoryWarning(@NotNull MinecraftInstance instance) {
         InstanceLaunchSettings instanceSettings = instance.launchSettings();

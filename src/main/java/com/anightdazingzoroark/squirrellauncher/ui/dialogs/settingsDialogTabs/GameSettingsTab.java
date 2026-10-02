@@ -36,7 +36,9 @@ public final class GameSettingsTab extends AbstractSettingsTab {
                     this.gameSettingsControls.lowMemoryWarning(),
                     this.gameSettingsControls.jvmArguments(),
                     savedSettings.language(),
-                    savedSettings.launchBehavior()
+                    savedSettings.launchBehavior(),
+                    savedSettings.showLinuxJavaPackageManagerReminder(),
+                    savedSettings.javaRuntimePaths()
             );
             if (settings.equals(savedSettings)) return;
             try {

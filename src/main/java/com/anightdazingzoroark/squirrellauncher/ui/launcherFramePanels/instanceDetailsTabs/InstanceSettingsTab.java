@@ -5,7 +5,6 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceLaunc
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceType;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntime;
-import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntimeManager;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaVersion;
 import com.anightdazingzoroark.squirrellauncher.ui.settingsControls.GameSettingsControls;
 import com.anightdazingzoroark.squirrellauncher.ui.LauncherActions;
@@ -15,16 +14,10 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
-import javax.swing.JFileChooser;
-import javax.swing.JList;
-import javax.swing.JOptionPane;
+import javax.swing.JComboBox;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTextField;
-import javax.swing.ListSelectionModel;
 import javax.swing.SwingWorker;
 import java.awt.BorderLayout;
-import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -38,11 +31,7 @@ import java.util.concurrent.ExecutionException;
 
 public final class InstanceSettingsTab extends JPanel {
     @NotNull
-    private final JTextField javaPathField = new JTextField();
-    @NotNull
-    private final JButton browseJavaButton = new JButton(Localization.text("instance.settings.java.browse"));
-    @NotNull
-    private final JButton detectJavaButton = new JButton(Localization.text("instance.settings.java.detect"));
+    private final JComboBox<JavaRuntimeChoice> javaRuntimeSelector = new JComboBox<>();
     @NotNull
     private final JButton resetDefaultsButton = new JButton(Localization.text("settings.button.reset_defaults"));
     @NotNull
@@ -65,6 +54,7 @@ public final class InstanceSettingsTab extends JPanel {
     private JavaVersion requiredJavaVersion = JavaVersion.JAVA_8;
     private int javaDetectionGeneration;
     private boolean detectingJavaRuntimes;
+    private boolean javaRuntimeSelectionAvailable;
     private boolean controlsAvailable;
     private boolean updatingControls;
     private boolean saveInProgress;
@@ -73,19 +63,15 @@ public final class InstanceSettingsTab extends JPanel {
         super(new BorderLayout(0, 8));
         this.launcherActions = launcherActions;
         this.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        this.javaPathField.setEditable(false);
+        this.javaRuntimeSelector.setMaximumRowCount(10);
 
         JPanel form = new JPanel(new GridBagLayout());
-        JPanel javaPanel = new JPanel(new BorderLayout(8, 0));
+        JPanel javaPanel = new JPanel(new BorderLayout());
         javaPanel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createTitledBorder(Localization.text("instance.settings.java.heading")),
                 BorderFactory.createEmptyBorder(6, 10, 10, 10)
         ));
-        javaPanel.add(this.javaPathField, BorderLayout.CENTER);
-        JPanel javaActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
-        javaActions.add(this.browseJavaButton);
-        javaActions.add(this.detectJavaButton);
-        javaPanel.add(javaActions, BorderLayout.EAST);
+        javaPanel.add(this.javaRuntimeSelector, BorderLayout.CENTER);
         GridBagConstraints java = new GridBagConstraints();
         java.gridx = 0;
         java.gridy = 0;
@@ -121,38 +107,18 @@ public final class InstanceSettingsTab extends JPanel {
         });
         this.cancelJvmArgumentsButton.addActionListener(event -> this.gameSettingsControls.cancelAdvancedChanges());
         this.saveJvmArgumentsButton.addActionListener(event -> this.gameSettingsControls.saveAdvancedChanges());
-        this.browseJavaButton.addActionListener(event -> {
-            JFileChooser chooser = new JFileChooser();
-            chooser.setDialogTitle(Localization.text("instance.settings.java.choose"));
-            chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
-            if (this.selectedJavaExecutable != null) {
-                Path initialDirectory = Files.isDirectory(this.selectedJavaExecutable)
-                        ? this.selectedJavaExecutable
-                        : this.selectedJavaExecutable.getParent();
-                if (initialDirectory != null) chooser.setCurrentDirectory(initialDirectory.toFile());
-            }
-            if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
-            this.javaDetectionGeneration++;
-            this.detectingJavaRuntimes = false;
-            this.selectedJavaExecutable = chooser.getSelectedFile().toPath().toAbsolutePath().normalize();
-            this.javaPathField.setText(this.selectedJavaExecutable.toString());
-            this.javaPathField.setToolTipText(this.selectedJavaExecutable.toString());
-            this.updateControlState();
-            this.detectJavaRuntimes(false, true);
+        this.javaRuntimeSelector.addActionListener(event -> {
+            if (this.updatingControls || this.detectingJavaRuntimes || !this.javaRuntimeSelectionAvailable) return;
+            JavaRuntimeChoice choice = (JavaRuntimeChoice) this.javaRuntimeSelector.getSelectedItem();
+            if (choice == null) return;
+            this.selectedJavaExecutable = choice.executable();
+            this.scheduleSave();
         });
-        this.detectJavaButton.addActionListener(event -> this.detectJavaRuntimes(true, true));
         this.resetDefaultsButton.addActionListener(event -> {
-            this.javaDetectionGeneration++;
-            this.detectingJavaRuntimes = false;
             this.selectedJavaExecutable = null;
-            this.javaPathField.setText(Localization.text(
-                    "instance.settings.java.detecting",
-                    this.requiredJavaVersion.major()
-            ));
-            this.javaPathField.setToolTipText(this.javaPathField.getText());
             this.gameSettingsControls.resetToDefaults();
-            this.updateControlState();
-            this.detectJavaRuntimes(false, false);
+            this.scheduleSave();
+            this.detectJavaRuntimes();
         });
         this.clearDisplayedInstance();
     }
@@ -171,14 +137,11 @@ public final class InstanceSettingsTab extends JPanel {
         this.selectedJavaExecutable = this.savedSettings.javaExecutable();
         this.javaDetectionGeneration++;
         this.detectingJavaRuntimes = false;
-        this.javaPathField.setText(this.selectedJavaExecutable == null
-                ? Localization.text("instance.settings.java.detecting", this.requiredJavaVersion.major())
-                : this.selectedJavaExecutable.toString());
-        this.javaPathField.setToolTipText(this.javaPathField.getText());
+        this.javaRuntimeSelectionAvailable = false;
         this.gameSettingsControls.showInstanceSettings(this.savedSettings, globalSettings);
         this.updatingControls = false;
         this.updateControlState();
-        this.detectJavaRuntimes(false, false);
+        this.detectJavaRuntimes();
     }
 
     public void clearDisplayedInstance() {
@@ -187,9 +150,9 @@ public final class InstanceSettingsTab extends JPanel {
         this.selectedJavaExecutable = null;
         this.javaDetectionGeneration++;
         this.detectingJavaRuntimes = false;
+        this.javaRuntimeSelectionAvailable = false;
         this.controlsAvailable = false;
-        this.javaPathField.setText("");
-        this.javaPathField.setToolTipText(null);
+        this.javaRuntimeSelector.removeAllItems();
         this.updatingControls = false;
         this.updateControlState();
     }
@@ -209,7 +172,7 @@ public final class InstanceSettingsTab extends JPanel {
                         this.savedSettings.javaExecutable()
                 );
                 this.selectedJavaExecutable = this.savedSettings.javaExecutable();
-                if (normalizedJavaPath) this.detectJavaRuntimes(false, false);
+                if (normalizedJavaPath) this.detectJavaRuntimes();
             }
         }
         if (updatedInstance != null
@@ -235,9 +198,9 @@ public final class InstanceSettingsTab extends JPanel {
     }
 
     private void updateControlState() {
-        this.javaPathField.setEnabled(this.controlsAvailable);
-        this.browseJavaButton.setEnabled(this.controlsAvailable);
-        this.detectJavaButton.setEnabled(this.controlsAvailable && !this.detectingJavaRuntimes);
+        this.javaRuntimeSelector.setEnabled(
+                this.controlsAvailable && !this.detectingJavaRuntimes && this.javaRuntimeSelectionAvailable
+        );
         this.resetDefaultsButton.setEnabled(this.controlsAvailable);
         this.gameSettingsControls.setAvailable(this.controlsAvailable);
     }
@@ -279,120 +242,107 @@ public final class InstanceSettingsTab extends JPanel {
         this.launcherActions.saveInstanceSettingsRequested(instanceId, settings);
     }
 
-    private void detectJavaRuntimes(boolean showChooser, boolean saveResolvedRuntime) {
+    private void detectJavaRuntimes() {
         if (this.displayedInstanceId == null) return;
         int generation = ++this.javaDetectionGeneration;
         JavaVersion requiredVersion = this.requiredJavaVersion;
         Path configuredRuntime = this.selectedJavaExecutable;
         this.detectingJavaRuntimes = true;
-        if (!showChooser && configuredRuntime == null) {
-            this.javaPathField.setText(Localization.text(
-                    "instance.settings.java.detecting",
-                    requiredVersion.major()
-            ));
-            this.javaPathField.setToolTipText(this.javaPathField.getText());
-        }
+        this.javaRuntimeSelectionAvailable = false;
+        this.updatingControls = true;
+        this.javaRuntimeSelector.removeAllItems();
+        this.javaRuntimeSelector.addItem(new JavaRuntimeChoice(
+                null,
+                Localization.text("instance.settings.java.detecting", requiredVersion.major())
+        ));
+        this.updatingControls = false;
         this.updateControlState();
         new SwingWorker<List<JavaRuntime>, Void>() {
             @NotNull
             @Override
-            protected List<JavaRuntime> doInBackground() throws Exception {
-                if (showChooser || configuredRuntime == null) return JavaRuntimeManager.detect(requiredVersion);
-                return List.of(JavaRuntimeManager.resolve(requiredVersion, configuredRuntime));
+            protected List<JavaRuntime> doInBackground() {
+                return InstanceSettingsTab.this.launcherActions.detectJavaRuntimes(
+                        requiredVersion,
+                        configuredRuntime
+                );
             }
 
             @Override
             protected void done() {
                 if (generation != InstanceSettingsTab.this.javaDetectionGeneration) return;
                 InstanceSettingsTab.this.detectingJavaRuntimes = false;
+                InstanceSettingsTab.this.updatingControls = true;
+                InstanceSettingsTab.this.javaRuntimeSelector.removeAllItems();
                 List<JavaRuntime> runtimes;
                 try {
                     runtimes = this.get();
                 }
                 catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
+                    InstanceSettingsTab.this.updatingControls = false;
                     InstanceSettingsTab.this.updateControlState();
                     return;
                 }
                 catch (ExecutionException exception) {
+                    InstanceSettingsTab.this.javaRuntimeSelector.addItem(new JavaRuntimeChoice(
+                            null,
+                            Localization.text("instance.settings.java.detect_error")
+                    ));
+                    InstanceSettingsTab.this.updatingControls = false;
                     InstanceSettingsTab.this.updateControlState();
-                    if (!showChooser && configuredRuntime != null) {
-                        String unavailableRuntime = Localization.text(
-                                "instance.settings.java.invalid_runtime",
-                                configuredRuntime
-                        );
-                        InstanceSettingsTab.this.javaPathField.setText(unavailableRuntime);
-                        InstanceSettingsTab.this.javaPathField.setToolTipText(unavailableRuntime);
-                        return;
-                    }
-                    JOptionPane.showMessageDialog(
-                            InstanceSettingsTab.this,
-                            exception.getCause().getMessage(),
-                            Localization.text("instance.settings.java.detect_error"),
-                            JOptionPane.ERROR_MESSAGE
-                    );
                     return;
                 }
 
                 if (runtimes.isEmpty()) {
-                    String noRuntime = Localization.text(
-                            "instance.settings.java.none_detected",
-                            requiredVersion.major()
-                    );
-                    if (showChooser) {
-                        JOptionPane.showMessageDialog(
-                                InstanceSettingsTab.this,
-                                noRuntime,
-                                Localization.text("instance.settings.java.detected_heading"),
-                                JOptionPane.INFORMATION_MESSAGE
-                        );
-                    }
-                    else {
-                        InstanceSettingsTab.this.javaPathField.setText(noRuntime);
-                        InstanceSettingsTab.this.javaPathField.setToolTipText(noRuntime);
-                    }
+                    InstanceSettingsTab.this.javaRuntimeSelector.addItem(new JavaRuntimeChoice(
+                            configuredRuntime,
+                            configuredRuntime == null
+                                    ? Localization.text(
+                                            "instance.settings.java.none_detected",
+                                            requiredVersion.major()
+                                    )
+                                    : Localization.text("instance.settings.java.invalid_runtime", configuredRuntime)
+                    ));
+                    InstanceSettingsTab.this.updatingControls = false;
                     InstanceSettingsTab.this.updateControlState();
                     return;
                 }
 
-                if (!showChooser) {
-                    JavaRuntime runtime = runtimes.getFirst();
-                    if (saveResolvedRuntime) InstanceSettingsTab.this.selectedJavaExecutable = runtime.executable();
-                    String runtimeText = InstanceSettingsTab.this.javaRuntimeText(runtime, configuredRuntime == null);
-                    InstanceSettingsTab.this.javaPathField.setText(runtimeText);
-                    InstanceSettingsTab.this.javaPathField.setToolTipText(runtimeText);
-                    InstanceSettingsTab.this.javaPathField.setCaretPosition(0);
-                    InstanceSettingsTab.this.updateControlState();
-                    if (saveResolvedRuntime) InstanceSettingsTab.this.scheduleSave();
-                    return;
+                int selectedIndex = -1;
+                if (configuredRuntime == null) {
+                    InstanceSettingsTab.this.javaRuntimeSelector.addItem(new JavaRuntimeChoice(
+                            null,
+                            InstanceSettingsTab.this.javaRuntimeText(runtimes.getFirst(), true)
+                    ));
+                    selectedIndex = 0;
                 }
-
-                String[] runtimeLabels = new String[runtimes.size()];
-                for (int index = 0; index < runtimes.size(); index++) {
-                    runtimeLabels[index] = InstanceSettingsTab.this.javaRuntimeText(runtimes.get(index), false);
+                else {
+                    for (int index = 0; index < runtimes.size(); index++) {
+                        JavaRuntime runtime = runtimes.get(index);
+                        try {
+                            if (!Files.isSameFile(configuredRuntime, runtime.executable())) continue;
+                            selectedIndex = index;
+                            break;
+                        }
+                        catch (java.io.IOException | SecurityException ignored) {}
+                    }
+                    if (selectedIndex < 0) {
+                        InstanceSettingsTab.this.javaRuntimeSelector.addItem(new JavaRuntimeChoice(
+                                configuredRuntime,
+                                Localization.text("instance.settings.java.invalid_runtime", configuredRuntime)
+                        ));
+                        selectedIndex = 0;
+                    }
                 }
-                JList<String> runtimeSelector = new JList<>(runtimeLabels);
-                runtimeSelector.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-                runtimeSelector.setSelectedIndex(0);
-                runtimeSelector.setVisibleRowCount(Math.min(8, runtimes.size()));
-                JScrollPane runtimeList = new JScrollPane(runtimeSelector);
-                runtimeList.setPreferredSize(new Dimension(700, Math.min(260, 28 + runtimes.size() * 24)));
-                int result = JOptionPane.showConfirmDialog(
-                        InstanceSettingsTab.this,
-                        runtimeList,
-                        Localization.text("instance.settings.java.detected_heading"),
-                        JOptionPane.OK_CANCEL_OPTION,
-                        JOptionPane.PLAIN_MESSAGE
-                );
-                if (result == JOptionPane.OK_OPTION && runtimeSelector.getSelectedIndex() >= 0) {
-                    JavaRuntime runtime = runtimes.get(runtimeSelector.getSelectedIndex());
-                    InstanceSettingsTab.this.selectedJavaExecutable = runtime.executable();
-                    String runtimeText = InstanceSettingsTab.this.javaRuntimeText(runtime, false);
-                    InstanceSettingsTab.this.javaPathField.setText(runtimeText);
-                    InstanceSettingsTab.this.javaPathField.setToolTipText(runtimeText);
-                    InstanceSettingsTab.this.javaPathField.setCaretPosition(0);
-                    InstanceSettingsTab.this.scheduleSave();
+                for (JavaRuntime runtime : runtimes) {
+                    InstanceSettingsTab.this.javaRuntimeSelector.addItem(new JavaRuntimeChoice(
+                            runtime.executable(),
+                            InstanceSettingsTab.this.javaRuntimeText(runtime, false)
+                    ));
                 }
+                InstanceSettingsTab.this.javaRuntimeSelector.setSelectedIndex(selectedIndex);
+                InstanceSettingsTab.this.javaRuntimeSelectionAvailable = true;
+                InstanceSettingsTab.this.updatingControls = false;
                 InstanceSettingsTab.this.updateControlState();
             }
         }.execute();
@@ -408,5 +358,13 @@ public final class InstanceSettingsTab extends JPanel {
                 runtime.detectedVersion(),
                 runtime.executable()
         );
+    }
+
+    private record JavaRuntimeChoice(@Nullable Path executable, @NotNull String label) {
+        @Override
+        @NotNull
+        public String toString() {
+            return this.label;
+        }
     }
 }

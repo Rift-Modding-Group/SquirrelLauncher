@@ -64,6 +64,16 @@ public final class GameSettingsManager {
                     minimumMemoryMegabytes,
                     allocatedMemoryGigabytes
             );
+            List<Path> javaRuntimePaths = new ArrayList<>();
+            if (root.has("javaRuntimePaths") && root.get("javaRuntimePaths").isJsonArray()) {
+                JsonArray savedRuntimePaths = root.getAsJsonArray("javaRuntimePaths");
+                for (JsonElement savedRuntimePath : savedRuntimePaths) {
+                    try {
+                        javaRuntimePaths.add(Path.of(savedRuntimePath.getAsString()));
+                    }
+                    catch (RuntimeException ignored) {}
+                }
+            }
             this.settings = new GameSettings(
                     root.has("fullscreen") && root.get("fullscreen").getAsBoolean(),
                     root.has("windowWidth") ? root.get("windowWidth").getAsInt() : 854,
@@ -76,7 +86,10 @@ public final class GameSettingsManager {
                             : LauncherLanguage.systemDefault(),
                     root.has("launchBehavior")
                             ? LaunchBehavior.valueOf(root.get("launchBehavior").getAsString())
-                            : LaunchBehavior.DO_NOTHING
+                            : LaunchBehavior.DO_NOTHING,
+                    !root.has("showLinuxJavaPackageManagerReminder")
+                            || root.get("showLinuxJavaPackageManagerReminder").getAsBoolean(),
+                    javaRuntimePaths
             );
         }
         catch (Exception exception) {
@@ -105,6 +118,15 @@ public final class GameSettingsManager {
         root.add("jvmArguments", jvmArguments);
         root.addProperty("language", settings.language().code());
         root.addProperty("launchBehavior", settings.launchBehavior().name());
+        root.addProperty(
+                "showLinuxJavaPackageManagerReminder",
+                settings.showLinuxJavaPackageManagerReminder()
+        );
+        JsonArray javaRuntimePaths = new JsonArray();
+        for (Path javaRuntimePath : settings.javaRuntimePaths()) {
+            javaRuntimePaths.add(javaRuntimePath.toString());
+        }
+        root.add("javaRuntimePaths", javaRuntimePaths);
 
         Path settingsFile = MinecraftPaths.SETTINGS;
         Files.createDirectories(settingsFile.getParent());

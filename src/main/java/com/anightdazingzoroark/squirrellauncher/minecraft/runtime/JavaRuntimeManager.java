@@ -5,9 +5,11 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -26,7 +28,7 @@ public final class JavaRuntimeManager {
 
     @NotNull
     public static JavaRuntime resolve(@NotNull JavaVersion requiredVersion) throws IOException {
-        List<Path> candidates = findCandidates(requiredVersion);
+        List<Path> candidates = findCandidates(requiredVersion, List.of());
         List<String> rejected = new ArrayList<>();
         for (Path candidate : candidates) {
             Path executable = normalizeExecutable(candidate);
@@ -94,10 +96,13 @@ public final class JavaRuntimeManager {
     }
 
     @NotNull
-    public static List<JavaRuntime> detect(@NotNull JavaVersion requiredVersion) {
+    public static List<JavaRuntime> detect(
+            @NotNull JavaVersion requiredVersion,
+            @NotNull List<Path> additionalCandidates
+    ) {
         Set<Path> detectedExecutables = new LinkedHashSet<>();
         List<JavaRuntime> runtimes = new ArrayList<>();
-        for (Path candidate : JavaRuntimeManager.findCandidates(requiredVersion)) {
+        for (Path candidate : JavaRuntimeManager.findCandidates(requiredVersion, additionalCandidates)) {
             Path executable = JavaRuntimeManager.normalizeExecutable(candidate);
             if (!Files.isRegularFile(executable) || !Files.isExecutable(executable)) continue;
             try {
@@ -113,7 +118,7 @@ public final class JavaRuntimeManager {
     }
 
     @NotNull
-    private static List<Path> findCandidates(@NotNull JavaVersion version) {
+    private static List<Path> findCandidates(@NotNull JavaVersion version, @NotNull List<Path> additionalCandidates) {
         Set<Path> candidates = new LinkedHashSet<>();
 
         //---explicit squirrellauncher override---
@@ -122,8 +127,13 @@ public final class JavaRuntimeManager {
             candidates.add(Paths.get(configured));
         }
 
-        //---launcher-managed runtime---
-        candidates.add(MinecraftPaths.RUNTIMES.resolve(version.directoryName()));
+        //---runtimes added from Java settings---
+        candidates.addAll(additionalCandidates);
+
+        //---launcher-managed runtimes---
+        Path managedRuntimes = MinecraftPaths.RUNTIMES.resolve(version.directoryName());
+        candidates.add(managedRuntimes);
+        JavaRuntimeManager.addJavaHomes(candidates, managedRuntimes, 3);
 
         //---get JAVA_HOME---
         String javaHome = System.getenv("JAVA_HOME");
@@ -135,6 +145,18 @@ public final class JavaRuntimeManager {
         String currentJavaHome = System.getProperty("java.home");
         if (currentJavaHome != null && !currentJavaHome.isBlank()) {
             candidates.add(Paths.get(currentJavaHome));
+        }
+
+        //---Java executables available on PATH---
+        String pathVariable = System.getenv("PATH");
+        if (pathVariable != null && !pathVariable.isBlank()) {
+            for (String directory : pathVariable.split(Pattern.quote(File.pathSeparator))) {
+                if (directory.isBlank()) continue;
+                try {
+                    candidates.add(Paths.get(directory).resolve(JavaRuntimeManager.executableName()));
+                }
+                catch (InvalidPathException ignored) {}
+            }
         }
 
         //---Linux system locations---
@@ -200,7 +222,7 @@ public final class JavaRuntimeManager {
     }
 
     @NotNull
-    private static String executableName() {
+    static String executableName() {
         String os = System.getProperty("os.name", "").toLowerCase();
         if (os.contains("win")) return "java.exe";
         return "java";

@@ -8,6 +8,9 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceLaunc
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ManagedMod;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModState;
+import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntime;
+import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntimeManager;
+import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaVersion;
 import com.anightdazingzoroark.squirrellauncher.ui.dialogs.AddInstanceDialog;
 import com.anightdazingzoroark.squirrellauncher.ui.dialogs.ChangeLoaderVersionDialog;
 import com.anightdazingzoroark.squirrellauncher.ui.dialogs.ConvertInstanceDialog;
@@ -24,6 +27,7 @@ import java.awt.Component;
 import java.awt.Desktop;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -77,6 +81,16 @@ public final class LauncherActions {
 
     public void sidebarStateChanged() {
         this.launcherFrame.updateControlState();
+    }
+
+    @NotNull
+    public List<JavaRuntime> detectJavaRuntimes(
+            @NotNull JavaVersion requiredVersion,
+            @Nullable Path configuredRuntime
+    ) {
+        List<Path> runtimePaths = new ArrayList<>(this.launcherService.settings().javaRuntimePaths());
+        if (configuredRuntime != null) runtimePaths.add(configuredRuntime);
+        return JavaRuntimeManager.detect(requiredVersion, runtimePaths);
     }
 
     public void addRequested() {

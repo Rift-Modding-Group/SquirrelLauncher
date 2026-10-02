@@ -5,6 +5,7 @@ import com.anightdazingzoroark.squirrellauncher.ui.Localization;
 import com.anightdazingzoroark.squirrellauncher.ui.dialogs.settingsDialogTabs.AboutSettingsTab;
 import com.anightdazingzoroark.squirrellauncher.ui.dialogs.settingsDialogTabs.AccountSettingsTab;
 import com.anightdazingzoroark.squirrellauncher.ui.dialogs.settingsDialogTabs.GameSettingsTab;
+import com.anightdazingzoroark.squirrellauncher.ui.dialogs.settingsDialogTabs.JavaSettingsTab;
 import com.anightdazingzoroark.squirrellauncher.ui.dialogs.settingsDialogTabs.LauncherSettingsTab;
 import org.jetbrains.annotations.NotNull;
 
@@ -29,12 +30,14 @@ public final class SettingsDialog extends AbstractDialog<Void> {
 
         this.tabs.addTab(Localization.text("settings.tab.game"), this.gameSettingsTab);
         this.tabs.addTab(Localization.text("settings.tab.launcher"), new LauncherSettingsTab(launcherService));
+        this.tabs.addTab(Localization.text("settings.tab.java"), new JavaSettingsTab(launcherService));
         this.tabs.addTab(
                 Localization.text("settings.tab.accounts"),
                 new AccountSettingsTab(launcherService, busy -> {
                     this.accountOperationInProgress = busy;
                     this.tabs.setEnabledAt(SettingsTab.GAME.ordinal(), !busy);
                     this.tabs.setEnabledAt(SettingsTab.LAUNCHER.ordinal(), !busy);
+                    this.tabs.setEnabledAt(SettingsTab.JAVA.ordinal(), !busy);
                     this.tabs.setEnabledAt(SettingsTab.ABOUT.ordinal(), !busy);
                 })
         );
@@ -72,6 +75,7 @@ public final class SettingsDialog extends AbstractDialog<Void> {
     public enum SettingsTab {
         GAME,
         LAUNCHER,
+        JAVA,
         ACCOUNTS,
         ABOUT;
     }
