@@ -72,6 +72,16 @@ public final class InstanceSidebarPanel extends JPanel {
     @NotNull
     private final JList<MinecraftInstance> instanceList = new JList<>(this.instanceModel) {
         @Override
+        protected void processMouseEvent(@NotNull MouseEvent event) {
+            if (event.getID() == MouseEvent.MOUSE_PRESSED && SwingUtilities.isLeftMouseButton(event)) {
+                int index = this.locationToIndex(event.getPoint());
+                Rectangle bounds = index < 0 ? null : this.getCellBounds(index, index);
+                if (bounds == null || !bounds.contains(event.getPoint())) return;
+            }
+            super.processMouseEvent(event);
+        }
+
+        @Override
         @Nullable
         public String getToolTipText(@NotNull MouseEvent event) {
             return InstanceSidebarPanel.this.gearIndexAt(event.getPoint()) >= 0
@@ -130,6 +140,7 @@ public final class InstanceSidebarPanel extends JPanel {
     @NotNull
     private final JMenuItem deleteInstanceItem = new JMenuItem(Localization.text("main.menu.delete"));
     private boolean busy;
+    private boolean rebuildingInstanceList;
     private int hoveredGearIndex = -1;
 
     public InstanceSidebarPanel(@NotNull LauncherActions launcherActions) {
@@ -314,7 +325,9 @@ public final class InstanceSidebarPanel extends JPanel {
         this.instanceList.setDragEnabled(true);
         this.instanceList.setDropMode(DropMode.INSERT);
         this.instanceList.addListSelectionListener(event -> {
-            if (!event.getValueIsAdjusting()) this.launcherActions.selectionChanged();
+            if (!event.getValueIsAdjusting() && !this.rebuildingInstanceList) {
+                this.launcherActions.selectionChanged();
+            }
         });
         this.instanceList.setTransferHandler(new TransferHandler() {
             @Nullable
@@ -508,29 +521,35 @@ public final class InstanceSidebarPanel extends JPanel {
     }
 
     private void rebuildInstanceList(@Nullable String selectedId) {
-        this.instanceModel.clear();
-        String query = this.instanceSearchField.getText().trim().toLowerCase(Locale.ROOT);
-        for (MinecraftInstance instance : this.instances) {
-            if (query.isEmpty()
-                    || instance.name().toLowerCase(Locale.ROOT).contains(query)
-                    || instance.id().toLowerCase(Locale.ROOT).contains(query)) {
-                this.instanceModel.addElement(instance);
-            }
-        }
-
-        MinecraftInstance selection = null;
-        if (selectedId != null) {
-            for (int index = 0; index < this.instanceModel.size(); index++) {
-                MinecraftInstance candidate = this.instanceModel.get(index);
-                if (selectedId.equals(candidate.id())) {
-                    selection = candidate;
-                    break;
+        this.rebuildingInstanceList = true;
+        try {
+            this.instanceModel.clear();
+            String query = this.instanceSearchField.getText().trim().toLowerCase(Locale.ROOT);
+            for (MinecraftInstance instance : this.instances) {
+                if (query.isEmpty()
+                        || instance.name().toLowerCase(Locale.ROOT).contains(query)
+                        || instance.id().toLowerCase(Locale.ROOT).contains(query)) {
+                    this.instanceModel.addElement(instance);
                 }
             }
+
+            MinecraftInstance selection = null;
+            if (selectedId != null) {
+                for (int index = 0; index < this.instanceModel.size(); index++) {
+                    MinecraftInstance candidate = this.instanceModel.get(index);
+                    if (selectedId.equals(candidate.id())) {
+                        selection = candidate;
+                        break;
+                    }
+                }
+            }
+            if (selection == null && !this.instanceModel.isEmpty()) selection = this.instanceModel.getElementAt(0);
+            this.instanceList.setSelectedValue(selection, true);
         }
-        if (selection == null && !this.instanceModel.isEmpty()) selection = this.instanceModel.getElementAt(0);
-        this.instanceList.setSelectedValue(selection, true);
-        if (selection == null) this.launcherActions.selectionChanged();
+        finally {
+            this.rebuildingInstanceList = false;
+        }
+        this.launcherActions.selectionChanged();
         this.launcherActions.sidebarStateChanged();
     }
 

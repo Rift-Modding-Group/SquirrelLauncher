@@ -148,9 +148,10 @@ public final class InstanceDetailsPanel extends JPanel {
     }
 
     public void showInstance(@NotNull MinecraftInstance instance, @NotNull GameSettings launcherSettings) {
+        boolean instanceChanged = !instance.id().equals(this.instanceSettingsTab.displayedInstanceId());
         this.contentLayout.show(this, INSTANCE_DETAILS_CARD);
         this.activityTab.showInstance(instance.id());
-        this.showActivityTab();
+        if (instanceChanged) this.showActivityTab();
         this.instanceNameLabel.setText(instance.name());
         this.instanceIconLabel.setIcon(InstanceIconProvider.INSTANCE.iconFor(instance));
         this.instanceTypeLabel.setText(Localization.text(

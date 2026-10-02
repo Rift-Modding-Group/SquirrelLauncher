@@ -14,7 +14,7 @@ A Minecraft 1.12.2 launcher and only 1.12.2. Checklist:
 * [ ] Built-in [Crash Assistant](https://www.curseforge.com/minecraft/mc-mods/crash-assistant)
 * [ ] Built-in [MCreator Detector](https://github.com/darklysteamgear/mcreatorDetector)
 * [ ] Mod downloading from Curse and Modrinth
-* [ ] Curseforge and Prism modpack import as instances
+* [ ] Curseforge and Modrinth modpack import as instances
 * [ ] Custom themes
 * [ ] World management
 * [ ] Screenshot management
