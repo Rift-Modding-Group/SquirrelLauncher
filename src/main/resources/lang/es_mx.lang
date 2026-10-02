@@ -226,6 +226,12 @@ settings.button.save=Guardar
 settings.button.cancel=Cancelar
 settings.button.reset_defaults=Restablecer valores predeterminados
 settings.launcher.heading=Launcher
+settings.launcher.launch_section=Inicio de instancias
+settings.launcher.launch_behavior=Después de iniciar una instancia:
+settings.launcher.launch_behavior.close=Cerrar el launcher
+settings.launcher.launch_behavior.hide=Ocultar el launcher
+settings.launcher.launch_behavior.do_nothing=No hacer nada
+settings.launcher.language_section=Idioma
 settings.launcher.language=Idioma:
 settings.launcher.language.en_us=Inglés (Estados Unidos)
 settings.launcher.language.es_mx=Español (México)
@@ -261,6 +267,10 @@ accounts.error.select=No se pudo seleccionar la cuenta
 
 # Acerca de
 about.heading=Acerca de
-about.description=<html><body style='font-family:sans-serif'>¡Es SquirrelLauncher! Creado por ANightDazingZoroark.<br /><br /><a href='https://github.com/Rift-Modding-Group/SquirrelLauncher'>Repositorio de GitHub</a><br /><br /><a href='https://anightdazingzoroark.github.io/'>Mi sitio web</a></body></html>
+about.description=¡Es SquirrelLauncher! Creado por ANightDazingZoroark.
+about.version=Versión: {0}
+about.button.github=Repositorio de GitHub
+about.button.website=Mi sitio web
+about.button.discord=Servidor de Discord
 about.error.unsupported=Este dispositivo no permite abrir páginas web.
 about.error.open_link=No se pudo abrir el enlace

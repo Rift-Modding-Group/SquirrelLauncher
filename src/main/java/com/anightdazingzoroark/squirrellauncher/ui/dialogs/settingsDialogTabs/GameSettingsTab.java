@@ -35,7 +35,8 @@ public final class GameSettingsTab extends AbstractSettingsTab {
                     this.gameSettingsControls.allocatedMemoryGigabytes(),
                     this.gameSettingsControls.lowMemoryWarning(),
                     this.gameSettingsControls.jvmArguments(),
-                    savedSettings.language()
+                    savedSettings.language(),
+                    savedSettings.launchBehavior()
             );
             if (settings.equals(savedSettings)) return;
             try {

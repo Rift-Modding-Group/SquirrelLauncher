@@ -158,7 +158,7 @@ public final class InstanceDetailsPanel extends JPanel {
                 LauncherFrame.displayName(instance.type())
         ));
         this.loaderVersionLabel.setText(instance.loaderVersion() == null
-                ? "Minecraft " + SquirrelLauncher.VERSION
+                ? "Minecraft " + SquirrelLauncher.GAME_VERSION
                 : Localization.text("main.instance.version", instance.loaderVersion()));
         this.selectedInstanceHasMods = instance.type().hasMods;
         this.instancePlaytimeLabel.setText(LauncherFrame.playtimeText(instance.totalTimePlayedSeconds()));

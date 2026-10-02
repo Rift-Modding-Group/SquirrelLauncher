@@ -35,15 +35,15 @@ public record LaunchDefinition(
      */
     @NotNull
     public static LaunchDefinition vanilla() throws IOException {
-        Path versionDir = MinecraftPaths.VERSIONS.resolve(SquirrelLauncher.VERSION);
-        JsonObject vanilla = InstallUtils.readJson(versionDir.resolve(SquirrelLauncher.VERSION + ".json"));
+        Path versionDir = MinecraftPaths.VERSIONS.resolve(SquirrelLauncher.GAME_VERSION);
+        JsonObject vanilla = InstallUtils.readJson(versionDir.resolve(SquirrelLauncher.GAME_VERSION + ".json"));
         LaunchComponent minecraft = LaunchComponent.metadata("minecraft", vanilla, false);
 
         return new LaunchDefinition(
                 "Vanilla",
-                SquirrelLauncher.VERSION,
+                SquirrelLauncher.GAME_VERSION,
                 SquirrelLauncher.NAME,
-                versionDir.resolve(SquirrelLauncher.VERSION + ".jar"),
+                versionDir.resolve(SquirrelLauncher.GAME_VERSION + ".jar"),
                 JavaVersion.JAVA_8,
                 assetIndexName(vanilla),
                 List.of(minecraft)
@@ -60,8 +60,8 @@ public record LaunchDefinition(
             throw new IllegalStateException("Forge instance " + instance.id() + " has no loaderVersion.");
         }
 
-        Path vanillaDir = MinecraftPaths.VERSIONS.resolve(SquirrelLauncher.VERSION);
-        JsonObject vanilla = InstallUtils.readJson(vanillaDir.resolve(SquirrelLauncher.VERSION + ".json"));
+        Path vanillaDir = MinecraftPaths.VERSIONS.resolve(SquirrelLauncher.GAME_VERSION);
+        JsonObject vanilla = InstallUtils.readJson(vanillaDir.resolve(SquirrelLauncher.GAME_VERSION + ".json"));
 
         String forgeId = ForgeConstants.versionId(forgeVersion);
 
@@ -74,7 +74,7 @@ public record LaunchDefinition(
                 "Forge "+ forgeVersion,
                 forgeId,
                 "Forge",
-                vanillaDir.resolve(SquirrelLauncher.VERSION + ".jar"),
+                vanillaDir.resolve(SquirrelLauncher.GAME_VERSION + ".jar"),
                 JavaVersion.JAVA_8,
                 assetIndexName(vanilla),
                 List.of(minecraftComponent, forgeComponent)
@@ -92,7 +92,7 @@ public record LaunchDefinition(
         }
 
         //Minecraft 1.12.2 base directory.
-        Path vanillaDir = MinecraftPaths.VERSIONS.resolve(SquirrelLauncher.VERSION);
+        Path vanillaDir = MinecraftPaths.VERSIONS.resolve(SquirrelLauncher.GAME_VERSION);
 
         /*
          * We still need Mojang's vanilla JSON for
@@ -106,8 +106,8 @@ public record LaunchDefinition(
          * Doing that would reintroduce vanilla's old LWJGL 2
          * libraries into the Cleanroom classpath.
          */
-        JsonObject vanilla = InstallUtils.readJson(vanillaDir.resolve(SquirrelLauncher.VERSION + ".json"));
-        Path clientJar = vanillaDir.resolve(SquirrelLauncher.VERSION + ".jar");
+        JsonObject vanilla = InstallUtils.readJson(vanillaDir.resolve(SquirrelLauncher.GAME_VERSION + ".json"));
+        Path clientJar = vanillaDir.resolve(SquirrelLauncher.GAME_VERSION + ".jar");
         List<LaunchComponent> components = new ArrayList<>();
 
         //Read Cleanroom's MMC component declaration

@@ -73,7 +73,10 @@ public final class GameSettingsManager {
                     jvmArguments,
                     root.has("language")
                             ? LauncherLanguage.fromCode(root.get("language").getAsString())
-                            : LauncherLanguage.systemDefault()
+                            : LauncherLanguage.systemDefault(),
+                    root.has("launchBehavior")
+                            ? LaunchBehavior.valueOf(root.get("launchBehavior").getAsString())
+                            : LaunchBehavior.DO_NOTHING
             );
         }
         catch (Exception exception) {
@@ -101,6 +104,7 @@ public final class GameSettingsManager {
         for (String argument : settings.jvmArguments()) jvmArguments.add(argument);
         root.add("jvmArguments", jvmArguments);
         root.addProperty("language", settings.language().code());
+        root.addProperty("launchBehavior", settings.launchBehavior().name());
 
         Path settingsFile = MinecraftPaths.SETTINGS;
         Files.createDirectories(settingsFile.getParent());

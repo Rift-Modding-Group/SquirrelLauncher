@@ -137,10 +137,10 @@ public final class InstanceManager {
         JsonArray components = new JsonArray();
         JsonObject minecraft = new JsonObject();
         minecraft.addProperty("cachedName", "Minecraft");
-        minecraft.addProperty("cachedVersion", SquirrelLauncher.VERSION);
+        minecraft.addProperty("cachedVersion", SquirrelLauncher.GAME_VERSION);
         minecraft.addProperty("important", true);
         minecraft.addProperty("uid", MINECRAFT_COMPONENT);
-        minecraft.addProperty("version", SquirrelLauncher.VERSION);
+        minecraft.addProperty("version", SquirrelLauncher.GAME_VERSION);
         components.add(minecraft);
 
         if (instance.type().hasMods) {
@@ -312,9 +312,9 @@ public final class InstanceManager {
             }
         }
 
-        if (!SquirrelLauncher.VERSION.equals(minecraftVersion)) {
+        if (!SquirrelLauncher.GAME_VERSION.equals(minecraftVersion)) {
             throw new IOException(
-                    "SquirrelLauncher only supports Minecraft " + SquirrelLauncher.VERSION
+                    "SquirrelLauncher only supports Minecraft " + SquirrelLauncher.GAME_VERSION
                             + "; this instance uses " + (minecraftVersion == null ? "no Minecraft component" : minecraftVersion) + "."
             );
         }
@@ -328,8 +328,8 @@ public final class InstanceManager {
         InstanceType type = loaderVersion == null
                 ? InstanceType.VANILLA
                 : cleanroom ? InstanceType.CLEANROOM : InstanceType.FORGE;
-        if (type == InstanceType.FORGE && loaderVersion.startsWith(SquirrelLauncher.VERSION + "-")) {
-            loaderVersion = loaderVersion.substring((SquirrelLauncher.VERSION + "-").length());
+        if (type == InstanceType.FORGE && loaderVersion.startsWith(SquirrelLauncher.GAME_VERSION + "-")) {
+            loaderVersion = loaderVersion.substring((SquirrelLauncher.GAME_VERSION + "-").length());
         }
         return new MinecraftInstance(
                 id,

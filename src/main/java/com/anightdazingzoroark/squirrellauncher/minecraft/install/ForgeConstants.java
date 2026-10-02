@@ -6,11 +6,11 @@ public final class ForgeConstants {
     private ForgeConstants() {}
 
     public static String fullVersion(String forgeVersion) {
-        return SquirrelLauncher.VERSION+ "-" + forgeVersion;
+        return SquirrelLauncher.GAME_VERSION + "-" + forgeVersion;
     }
 
     public static String versionId(String forgeVersion) {
-        return SquirrelLauncher.VERSION + "-forge-" + forgeVersion;
+        return SquirrelLauncher.GAME_VERSION + "-forge-" + forgeVersion;
     }
 
     public static String installerUrl(String forgeVersion) {

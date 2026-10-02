@@ -15,7 +15,8 @@ public record GameSettings(
         int allocatedMemoryGigabytes,
         boolean lowMemoryWarning,
         @NotNull List<String> jvmArguments,
-        @NotNull LauncherLanguage language
+        @NotNull LauncherLanguage language,
+        @NotNull LaunchBehavior launchBehavior
 ) {
     public static final int MINIMUM_ALLOCATED_MEMORY_GIGABYTES = 1;
     public static final int MAXIMUM_ALLOCATED_MEMORY_GIGABYTES;
@@ -73,7 +74,8 @@ public record GameSettings(
                 GameSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES,
                 true,
                 JvmArguments.withMemory(List.of(), 512, GameSettings.DEFAULT_ALLOCATED_MEMORY_GIGABYTES),
-                LauncherLanguage.systemDefault()
+                LauncherLanguage.systemDefault(),
+                LaunchBehavior.DO_NOTHING
         );
     }
 }

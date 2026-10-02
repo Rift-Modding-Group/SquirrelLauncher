@@ -226,6 +226,12 @@ settings.button.save=Save
 settings.button.cancel=Cancel
 settings.button.reset_defaults=Reset to defaults
 settings.launcher.heading=Launcher
+settings.launcher.launch_section=Instance launch
+settings.launcher.launch_behavior=After launching an instance:
+settings.launcher.launch_behavior.close=Close the launcher
+settings.launcher.launch_behavior.hide=Hide the launcher
+settings.launcher.launch_behavior.do_nothing=Do nothing
+settings.launcher.language_section=Language
 settings.launcher.language=Language:
 settings.launcher.language.en_us=English (United States)
 settings.launcher.language.es_mx=Spanish (Mexico)
@@ -261,6 +267,10 @@ accounts.error.select=Could not select account
 
 # About
 about.heading=About
-about.description=<html><body style='font-family:sans-serif'>It's SquirrelLauncher! Made by ANightDazingZoroark.<br /><br /><a href='https://github.com/Rift-Modding-Group/SquirrelLauncher'>GitHub repository</a><br /><br /><a href='https://anightdazingzoroark.github.io/'>My website</a></body></html>
+about.description=It's SquirrelLauncher! Made by ANightDazingZoroark.
+about.version=Version: {0}
+about.button.github=GitHub repository
+about.button.website=My website
+about.button.discord=Discord server
 about.error.unsupported=Opening web pages is not supported on this device.
 about.error.open_link=Could not open link

@@ -56,8 +56,6 @@ public final class InstanceSettingsTab extends JPanel {
     @NotNull
     private final Map<String, InstanceLaunchSettings> queuedSettings = new LinkedHashMap<>();
     @NotNull
-    private GameSettings globalSettings = GameSettings.defaults();
-    @NotNull
     private InstanceLaunchSettings savedSettings = InstanceLaunchSettings.defaults();
     @Nullable
     private Path selectedJavaExecutable;
@@ -74,7 +72,7 @@ public final class InstanceSettingsTab extends JPanel {
     public InstanceSettingsTab(@NotNull LauncherActions launcherActions) {
         super(new BorderLayout(0, 8));
         this.launcherActions = launcherActions;
-        this.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
+        this.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         this.javaPathField.setEditable(false);
 
         JPanel form = new JPanel(new GridBagLayout());
@@ -166,7 +164,6 @@ public final class InstanceSettingsTab extends JPanel {
         }
         this.updatingControls = true;
         this.displayedInstanceId = instance.id();
-        this.globalSettings = globalSettings;
         this.requiredJavaVersion = instance.type() == InstanceType.CLEANROOM
                 ? JavaVersion.JAVA_25
                 : JavaVersion.JAVA_8;

@@ -41,7 +41,7 @@ public final class SettingsDialog extends AbstractDialog<Void> {
         this.tabs.addTab(Localization.text("settings.tab.about"), new AboutSettingsTab(launcherService));
 
         this.tabs.setSelectedIndex(selectedTab.ordinal());
-        this.tabs.setBorder(BorderFactory.createEmptyBorder(10, 10, 0, 10));
+        this.tabs.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         this.add(this.tabs, BorderLayout.CENTER);
 
         this.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
@@ -60,6 +60,7 @@ public final class SettingsDialog extends AbstractDialog<Void> {
         this.setMinimumSize(new Dimension(680, 520));
         this.resizeToContent();
         this.setSize(this.getMinimumSize().width, this.getHeight());
+        this.setResizable(false);
         this.setLocationRelativeTo(owner);
     }
 

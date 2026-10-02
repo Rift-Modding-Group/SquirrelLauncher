@@ -17,7 +17,7 @@ import java.util.function.Function;
 public enum InstanceType {
     VANILLA(
             new VanillaInstaller(),
-            instance -> SquirrelLauncher.VERSION,
+            instance -> SquirrelLauncher.GAME_VERSION,
             (instance, installRoot) -> LaunchDefinition.vanilla(),
             false
     ),

@@ -3,6 +3,7 @@ package com.anightdazingzoroark.squirrellauncher.minecraft.launch;
 import com.anightdazingzoroark.squirrellauncher.SquirrelLauncher;
 import com.anightdazingzoroark.squirrellauncher.launcher.GameSettings;
 import com.anightdazingzoroark.squirrellauncher.launcher.JvmArguments;
+import com.anightdazingzoroark.squirrellauncher.launcher.LaunchBehavior;
 import com.anightdazingzoroark.squirrellauncher.minecraft.MinecraftPaths;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MinecraftAccount;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
@@ -122,6 +123,9 @@ public final class MinecraftLauncher {
         ProcessBuilder builder = new ProcessBuilder(command);
         builder.directory(gameDir.toFile());
         builder.redirectErrorStream(true);
+        if (settings.launchBehavior() == LaunchBehavior.CLOSE) {
+            builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+        }
 
         if (Thread.currentThread().isInterrupted()) {
             throw new InterruptedException("Launch preparation was stopped.");
@@ -131,9 +135,11 @@ public final class MinecraftLauncher {
             process.destroyForcibly();
             throw new InterruptedException("Launch preparation was stopped.");
         }
-        Thread outputThread = new Thread(() -> forwardOutput(process, instance.name()), "minecraft-output");
-        outputThread.setDaemon(true);
-        outputThread.start();
+        if (settings.launchBehavior() != LaunchBehavior.CLOSE) {
+            Thread outputThread = new Thread(() -> forwardOutput(process, instance.name()), "minecraft-output");
+            outputThread.setDaemon(true);
+            outputThread.start();
+        }
 
         return process;
     }

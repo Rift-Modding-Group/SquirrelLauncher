@@ -1,6 +1,7 @@
 package com.anightdazingzoroark.squirrellauncher.ui;
 
 import com.anightdazingzoroark.squirrellauncher.SquirrelLauncher;
+import com.anightdazingzoroark.squirrellauncher.launcher.LaunchBehavior;
 import com.anightdazingzoroark.squirrellauncher.launcher.LauncherService;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MinecraftAccount;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceType;
@@ -253,6 +254,13 @@ public final class LauncherFrame extends JFrame {
     }
 
     void monitorProcess(@NotNull MinecraftInstance instance, @NotNull Process process) {
+        LaunchBehavior launchBehavior = this.launcherService.settings().launchBehavior();
+        if (launchBehavior == LaunchBehavior.CLOSE) {
+            this.launcherService.close();
+            this.dispose();
+            return;
+        }
+        boolean restoreLauncherAfterExit = launchBehavior == LaunchBehavior.HIDE;
         long launchTimeMillis = System.currentTimeMillis();
         long launchTimeNanos = System.nanoTime();
         this.runningProcess = process;
@@ -260,6 +268,7 @@ public final class LauncherFrame extends JFrame {
         this.runningActivityPrefix = "[" + instance.name() + "] ";
         this.setStatus(Localization.text("main.status.minecraft_running"));
         this.updateControlState();
+        if (restoreLauncherAfterExit) this.setVisible(false);
         new SwingWorker<GameExit, Void>() {
             @Override
             @NotNull
@@ -280,6 +289,10 @@ public final class LauncherFrame extends JFrame {
 
             @Override
             protected void done() {
+                if (restoreLauncherAfterExit) {
+                    LauncherFrame.this.setVisible(true);
+                    LauncherFrame.this.toFront();
+                }
                 LauncherFrame.this.runningProcess = null;
                 try {
                     GameExit result = this.get();
