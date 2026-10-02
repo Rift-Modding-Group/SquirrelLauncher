@@ -27,8 +27,7 @@ public record MinecraftInstance(
         Path minecraft = this.directory().resolve("minecraft");
         Path dotMinecraft = this.directory().resolve(".minecraft");
         return java.nio.file.Files.exists(dotMinecraft) && !java.nio.file.Files.exists(minecraft)
-                ? dotMinecraft
-                : minecraft;
+                ? dotMinecraft : minecraft;
     }
 
     @NotNull
@@ -51,4 +50,8 @@ public record MinecraftInstance(
         return this.gameDirectory().resolve("mods");
     }
 
+    @NotNull
+    public Path configsDirectory() {
+        return this.gameDirectory().resolve("config");
+    }
 }

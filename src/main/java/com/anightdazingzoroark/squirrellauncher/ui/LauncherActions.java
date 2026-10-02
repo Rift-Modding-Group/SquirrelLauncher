@@ -347,6 +347,30 @@ public final class LauncherActions {
         }
     }
 
+    public void openConfigsFolderRequested() {
+        MinecraftInstance instance = this.selectedInstance();
+        if (instance == null || !instance.type().hasMods) return;
+        Path configsDirectory = instance.configsDirectory();
+        try {
+            Files.createDirectories(configsDirectory);
+            if (!Desktop.isDesktopSupported()) {
+                throw new UnsupportedOperationException(Localization.text("main.error.file_explorer_unsupported"));
+            }
+            Desktop desktop = Desktop.getDesktop();
+            if (!desktop.isSupported(Desktop.Action.OPEN)) {
+                throw new UnsupportedOperationException(Localization.text("main.error.file_explorer_unsupported"));
+            }
+            desktop.open(configsDirectory.toFile());
+        }
+        catch (Exception exception) {
+            this.launcherFrame.showError(
+                    Localization.text("main.error.open_configs_folder"),
+                    exception,
+                    instance.id()
+            );
+        }
+    }
+
     public void exportRequested() {
         MinecraftInstance instance = this.selectedInstance();
         if (instance == null) return;

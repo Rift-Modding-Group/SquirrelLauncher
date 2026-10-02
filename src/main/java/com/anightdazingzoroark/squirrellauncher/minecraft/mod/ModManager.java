@@ -139,6 +139,7 @@ public final class ModManager {
     private ManagedMod describe(@NotNull String fileName, @NotNull Path path, @NotNull ModState state) throws IOException {
         String name = fileName;
         String version = "";
+        String description = "";
         BufferedImage icon = null;
         try (ZipFile archive = new ZipFile(path.toFile())) {
             ZipEntry metadataEntry = archive.getEntry("mcmod.info");
@@ -174,6 +175,10 @@ public final class ModManager {
                                 && !metadataVersion.getAsString().startsWith("${")
                         ) {
                             version = metadataVersion.getAsString();
+                        }
+                        JsonElement metadataDescription = modInformation.get("description");
+                        if (metadataDescription != null && metadataDescription.isJsonPrimitive()) {
+                            description = metadataDescription.getAsString();
                         }
                         JsonElement metadataLogo = modInformation.get("logoFile");
                         if (metadataLogo != null && metadataLogo.isJsonPrimitive()
@@ -255,6 +260,7 @@ public final class ModManager {
                 fileName,
                 name,
                 version,
+                description,
                 Files.getLastModifiedTime(path).toMillis(),
                 icon,
                 path,

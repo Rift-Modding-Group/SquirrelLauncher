@@ -7,19 +7,12 @@ import com.anightdazingzoroark.squirrellauncher.ui.Localization;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.BorderFactory;
-import javax.swing.JButton;
-import javax.swing.Icon;
-import javax.swing.ImageIcon;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTable;
-import javax.swing.ListSelectionModel;
+import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableColumn;
-import java.awt.BorderLayout;
-import java.awt.Component;
-import java.awt.FlowLayout;
+import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -38,16 +31,21 @@ public final class InstanceModsTab extends JPanel {
     @NotNull
     private final JTable modTable = new JTable(this.modTableModel);
     @NotNull
+    private final SelectedModInfo selectedModInfo = new SelectedModInfo();
+    @NotNull
     private final JButton installModButton = new JButton(Localization.text("main.button.install_mod"));
     @NotNull
-    private final JButton removeModButton = new JButton(Localization.text("main.button.remove"));
-    @NotNull
     private final JButton openModsFolderButton = new JButton(Localization.text("main.button.open_mods_folder"));
+    @NotNull
+    private final JButton openConfigsFolderButton = new JButton(Localization.text("main.button.open_configs_folder"));
+    @NotNull
+    private final JPopupMenu modActionsMenu = new JPopupMenu();
 
     public InstanceModsTab(@NotNull LauncherActions launcherActions) {
         super(new BorderLayout(0, 8));
         this.launcherActions = launcherActions;
         this.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
+        this.configureMenu();
 
         this.modTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         this.modTable.setFillsViewportHeight(true);
@@ -72,7 +70,31 @@ public final class InstanceModsTab extends JPanel {
         this.modTable.getColumnModel().getColumn(3).setPreferredWidth(100);
         this.modTable.getColumnModel().getColumn(4).setPreferredWidth(140);
         this.modTable.getSelectionModel().addListSelectionListener(event -> {
-            if (!event.getValueIsAdjusting()) this.launcherActions.modSelectionChanged();
+            if (event.getValueIsAdjusting()) return;
+
+            this.selectedModInfo.update(this.selectedMod());
+            this.launcherActions.modSelectionChanged();
+        });
+        this.modTable.addMouseListener(new MouseAdapter() {
+            private void showPopup(MouseEvent e) {
+                if (!e.isPopupTrigger()) return;
+
+                int row = InstanceModsTab.this.modTable.rowAtPoint(e.getPoint());
+                if (row < 0) return;
+
+                InstanceModsTab.this.modTable.setRowSelectionInterval(row, row);
+                InstanceModsTab.this.modActionsMenu.show(InstanceModsTab.this.modTable, e.getX(), e.getY());
+            }
+
+            @Override
+            public void mousePressed(MouseEvent e) {
+                this.showPopup(e);
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                this.showPopup(e);
+            }
         });
         this.add(new JScrollPane(this.modTable), BorderLayout.CENTER);
 
@@ -80,14 +102,23 @@ public final class InstanceModsTab extends JPanel {
         actions.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 8));
         JPanel modActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         modActions.add(this.installModButton);
-        modActions.add(this.removeModButton);
         actions.add(modActions, BorderLayout.WEST);
         actions.add(this.openModsFolderButton, BorderLayout.EAST);
-        this.add(actions, BorderLayout.SOUTH);
+        JPanel bottomContent = new JPanel(new BorderLayout(0, 8));
+        bottomContent.add(this.selectedModInfo, BorderLayout.CENTER);
+        bottomContent.add(actions, BorderLayout.SOUTH);
+        this.add(bottomContent, BorderLayout.SOUTH);
 
         this.installModButton.addActionListener(event -> this.launcherActions.installModRequested());
-        this.removeModButton.addActionListener(event -> this.launcherActions.removeModRequested());
         this.openModsFolderButton.addActionListener(event -> this.launcherActions.openModsFolderRequested());
+        this.openConfigsFolderButton.addActionListener(event -> this.launcherActions.openConfigsFolderRequested());
+    }
+
+    private void configureMenu() {
+        JMenuItem deleteModItem = new JMenuItem(Localization.text("instance.mods.menu.remove"));
+        deleteModItem.addActionListener(event -> this.launcherActions.removeModRequested());
+
+        this.modActionsMenu.add(deleteModItem);
     }
 
     public void setMods(@NotNull List<ManagedMod> mods) {
@@ -121,12 +152,11 @@ public final class InstanceModsTab extends JPanel {
     }
 
     public void updateControlState(boolean available, boolean supportsMods) {
-        ManagedMod mod = this.selectedMod();
         this.modTable.setEnabled(available && supportsMods);
         this.modTableModel.editable = available && supportsMods;
         this.installModButton.setEnabled(available && supportsMods);
-        this.removeModButton.setEnabled(available && supportsMods && mod != null);
         this.openModsFolderButton.setEnabled(available && supportsMods);
+        this.openConfigsFolderButton.setEnabled(available && supportsMods);
     }
 
     private final class ModTableModel extends AbstractTableModel {
@@ -217,6 +247,54 @@ public final class InstanceModsTab extends JPanel {
             ManagedMod mod = this.mods.get(row);
             if (enabled == (mod.state() == ModState.ENABLED)) return;
             InstanceModsTab.this.launcherActions.setModEnabledRequested(mod, enabled);
+        }
+    }
+
+    private final class SelectedModInfo extends JPanel {
+        @NotNull
+        private final JLabel iconLabel = new JLabel();
+        @NotNull
+        private final JLabel nameLabel = new JLabel();
+        @NotNull
+        private final JTextArea descriptionArea = new JTextArea(2, 0);
+
+        private SelectedModInfo() {
+            super(new BorderLayout(8, 0));
+
+            this.nameLabel.setFont(this.nameLabel.getFont().deriveFont(Font.BOLD));
+
+            this.descriptionArea.setEditable(false);
+            this.descriptionArea.setOpaque(false);
+            this.descriptionArea.setLineWrap(true);
+            this.descriptionArea.setWrapStyleWord(true);
+            this.descriptionArea.setFocusable(false);
+            this.descriptionArea.setBorder(null);
+
+            this.add(this.iconLabel, BorderLayout.WEST);
+            JPanel textSide = new JPanel(new BorderLayout(0, 4));
+            textSide.add(this.nameLabel, BorderLayout.NORTH);
+            textSide.add(this.descriptionArea, BorderLayout.CENTER);
+            this.add(textSide, BorderLayout.CENTER);
+
+            this.setVisible(false);
+        }
+
+        private void update(@Nullable ManagedMod mod) {
+            if (mod == null) {
+                this.iconLabel.setIcon(null);
+                this.nameLabel.setText("");
+                this.descriptionArea.setText("");
+                this.setVisible(false);
+            }
+            else {
+                this.iconLabel.setIcon(mod.icon() == null ? null : new ImageIcon(mod.icon()));
+                this.nameLabel.setText(mod.name());
+                this.descriptionArea.setText(mod.description());
+                this.descriptionArea.setCaretPosition(0);
+                this.setVisible(true);
+                this.revalidate();
+                this.repaint();
+            }
         }
     }
 }

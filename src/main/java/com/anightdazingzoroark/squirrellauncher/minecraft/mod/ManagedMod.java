@@ -10,6 +10,7 @@ public record ManagedMod(
         @NotNull String fileName,
         @NotNull String name,
         @NotNull String version,
+        @NotNull String description,
         long lastModifiedMillis,
         @Nullable BufferedImage icon,
         @NotNull Path path,
