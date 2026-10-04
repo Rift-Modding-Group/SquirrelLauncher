@@ -38,7 +38,8 @@ public final class GameSettingsTab extends AbstractSettingsTab {
                     savedSettings.language(),
                     savedSettings.launchBehavior(),
                     savedSettings.showLinuxJavaPackageManagerReminder(),
-                    savedSettings.javaRuntimePaths()
+                    savedSettings.javaRuntimePaths(),
+                    savedSettings.githubModRepositories()
             );
             if (settings.equals(savedSettings)) return;
             try {

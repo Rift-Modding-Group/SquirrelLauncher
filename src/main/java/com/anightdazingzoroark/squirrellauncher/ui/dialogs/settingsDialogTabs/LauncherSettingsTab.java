@@ -10,6 +10,8 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 public final class LauncherSettingsTab extends AbstractSettingsTab {
@@ -17,11 +19,16 @@ public final class LauncherSettingsTab extends AbstractSettingsTab {
     private final JComboBox<LaunchBehavior> launchBehaviorSelector;
     @NotNull
     private final JComboBox<LauncherLanguage> languageSelector;
+    @NotNull
+    private final JPanel githubRepositoriesPanel = new JPanel(new GridBagLayout());
+    @NotNull
+    private final List<JTextField> githubRepositoryFields = new ArrayList<>();
 
     public LauncherSettingsTab(@NotNull LauncherService launcherService) {
         super(new BorderLayout(), launcherService);
         this.launchBehaviorSelector = new JComboBox<>(LaunchBehavior.values());
         this.languageSelector = new JComboBox<>(LauncherLanguage.values());
+        this.showGitHubRepositories(this.launcherService.settings().githubModRepositories());
 
         this.launchBehaviorSelector.setSelectedItem(this.launcherService.settings().launchBehavior());
         this.launchBehaviorSelector.setPreferredSize(new Dimension(280, 28));
@@ -138,11 +145,63 @@ public final class LauncherSettingsTab extends AbstractSettingsTab {
         languageSection.gridy = 2;
         languageSection.weightx = 1;
         languageSection.fill = GridBagConstraints.HORIZONTAL;
+        languageSection.insets = new Insets(0, 0, 12, 0);
         form.add(languagePanel, languageSection);
+
+        JPanel githubPanel = new JPanel(new GridBagLayout());
+        githubPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createTitledBorder(Localization.text("settings.launcher.github.section")),
+                BorderFactory.createEmptyBorder(4, 10, 8, 10)
+        ));
+        GridBagConstraints githubInstructions = new GridBagConstraints();
+        githubInstructions.gridx = 0;
+        githubInstructions.gridy = 0;
+        githubInstructions.weightx = 1;
+        githubInstructions.fill = GridBagConstraints.HORIZONTAL;
+        githubInstructions.anchor = GridBagConstraints.LINE_START;
+        githubInstructions.insets = new Insets(5, 0, 8, 0);
+        JTextArea githubInstructionsText = new JTextArea(
+                Localization.text("settings.launcher.github.instructions"),
+                2,
+                48
+        );
+        githubInstructionsText.setEditable(false);
+        githubInstructionsText.setFocusable(false);
+        githubInstructionsText.setOpaque(false);
+        githubInstructionsText.setLineWrap(true);
+        githubInstructionsText.setWrapStyleWord(true);
+        githubPanel.add(githubInstructionsText, githubInstructions);
+
+        GridBagConstraints githubRepositories = new GridBagConstraints();
+        githubRepositories.gridx = 0;
+        githubRepositories.gridy = 1;
+        githubRepositories.weightx = 1;
+        githubRepositories.weighty = 1;
+        githubRepositories.fill = GridBagConstraints.BOTH;
+        JScrollPane githubRepositoriesScrollPane = new JScrollPane(this.githubRepositoriesPanel);
+        githubRepositoriesScrollPane.setPreferredSize(new Dimension(580, 148));
+        githubRepositoriesScrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        githubPanel.add(githubRepositoriesScrollPane, githubRepositories);
+
+        GridBagConstraints saveGithubRepositories = new GridBagConstraints();
+        saveGithubRepositories.gridx = 0;
+        saveGithubRepositories.gridy = 2;
+        saveGithubRepositories.anchor = GridBagConstraints.LINE_END;
+        saveGithubRepositories.insets = new Insets(8, 0, 0, 0);
+        JButton saveGithubRepositoriesButton = new JButton(Localization.text("settings.launcher.github.save"));
+        githubPanel.add(saveGithubRepositoriesButton, saveGithubRepositories);
+
+        GridBagConstraints githubSection = new GridBagConstraints();
+        githubSection.gridx = 0;
+        githubSection.gridy = 3;
+        githubSection.weightx = 1;
+        githubSection.weighty = 1;
+        githubSection.fill = GridBagConstraints.BOTH;
+        form.add(githubPanel, githubSection);
 
         GridBagConstraints filler = new GridBagConstraints();
         filler.gridx = 0;
-        filler.gridy = 3;
+        filler.gridy = 4;
         filler.weighty = 1;
         filler.fill = GridBagConstraints.VERTICAL;
         form.add(new JPanel(), filler);
@@ -150,6 +209,7 @@ public final class LauncherSettingsTab extends AbstractSettingsTab {
 
         this.launchBehaviorSelector.addActionListener(event -> this.saveSettings());
         this.languageSelector.addActionListener(event -> this.saveSettings());
+        saveGithubRepositoriesButton.addActionListener(event -> this.saveSettings());
     }
 
     @Override
@@ -158,30 +218,114 @@ public final class LauncherSettingsTab extends AbstractSettingsTab {
         return Localization.text("settings.launcher.heading");
     }
 
+    private void showGitHubRepositories(@NotNull List<String> repositories) {
+        this.githubRepositoryFields.clear();
+        for (String repository : repositories) {
+            this.githubRepositoryFields.add(new JTextField(repository));
+        }
+        this.rebuildGitHubRepositoriesPanel();
+    }
+
+    private void rebuildGitHubRepositoriesPanel() {
+        this.githubRepositoriesPanel.removeAll();
+        int row = 0;
+        for (JTextField repositoryField : this.githubRepositoryFields) {
+            GridBagConstraints labelConstraints = new GridBagConstraints();
+            labelConstraints.gridx = 0;
+            labelConstraints.gridy = row;
+            labelConstraints.anchor = GridBagConstraints.LINE_START;
+            labelConstraints.insets = new Insets(5, 8, 5, 10);
+            this.githubRepositoriesPanel.add(
+                    new JLabel(Localization.text("settings.launcher.github.repository")),
+                    labelConstraints
+            );
+
+            GridBagConstraints fieldConstraints = new GridBagConstraints();
+            fieldConstraints.gridx = 1;
+            fieldConstraints.gridy = row;
+            fieldConstraints.weightx = 1;
+            fieldConstraints.fill = GridBagConstraints.HORIZONTAL;
+            fieldConstraints.insets = new Insets(5, 0, 5, 8);
+            this.githubRepositoriesPanel.add(repositoryField, fieldConstraints);
+
+            JButton removeButton = new JButton("−");
+            removeButton.setToolTipText(Localization.text("settings.launcher.github.remove"));
+            removeButton.setMargin(new Insets(2, 9, 2, 9));
+            removeButton.addActionListener(event -> {
+                this.githubRepositoryFields.remove(repositoryField);
+                this.rebuildGitHubRepositoriesPanel();
+            });
+            GridBagConstraints removeConstraints = new GridBagConstraints();
+            removeConstraints.gridx = 2;
+            removeConstraints.gridy = row;
+            removeConstraints.insets = new Insets(5, 0, 5, 8);
+            this.githubRepositoriesPanel.add(removeButton, removeConstraints);
+            row++;
+        }
+
+        GridBagConstraints spacerConstraints = new GridBagConstraints();
+        spacerConstraints.gridx = 0;
+        spacerConstraints.gridy = row;
+        spacerConstraints.gridwidth = 2;
+        spacerConstraints.weightx = 1;
+        spacerConstraints.fill = GridBagConstraints.HORIZONTAL;
+        this.githubRepositoriesPanel.add(Box.createHorizontalGlue(), spacerConstraints);
+
+        JButton addButton = new JButton("+");
+        addButton.setToolTipText(Localization.text("settings.launcher.github.add"));
+        addButton.setMargin(new Insets(2, 8, 2, 8));
+        addButton.addActionListener(event -> {
+            JTextField repositoryField = new JTextField();
+            this.githubRepositoryFields.add(repositoryField);
+            this.rebuildGitHubRepositoriesPanel();
+            SwingUtilities.invokeLater(repositoryField::requestFocusInWindow);
+        });
+        GridBagConstraints addConstraints = new GridBagConstraints();
+        addConstraints.gridx = 2;
+        addConstraints.gridy = row;
+        addConstraints.anchor = GridBagConstraints.LINE_END;
+        addConstraints.insets = new Insets(3, 0, 6, 8);
+        this.githubRepositoriesPanel.add(addButton, addConstraints);
+
+        this.githubRepositoriesPanel.revalidate();
+        this.githubRepositoriesPanel.repaint();
+    }
+
     private void saveSettings() {
         LaunchBehavior selectedLaunchBehavior = (LaunchBehavior) this.launchBehaviorSelector.getSelectedItem();
         LauncherLanguage selectedLanguage = (LauncherLanguage) this.languageSelector.getSelectedItem();
         if (selectedLaunchBehavior == null || selectedLanguage == null) return;
+        List<String> githubRepositories = this.githubRepositoryFields.stream()
+                .map(JTextField::getText)
+                .map(String::trim)
+                .filter(repository -> !repository.isBlank())
+                .toList();
 
         GameSettings savedSettings = this.launcherService.settings();
-        GameSettings settings = new GameSettings(
-                savedSettings.fullscreen(),
-                savedSettings.windowWidth(),
-                savedSettings.windowHeight(),
-                savedSettings.allocatedMemoryGigabytes(),
-                savedSettings.lowMemoryWarning(),
-                savedSettings.jvmArguments(),
-                selectedLanguage,
-                selectedLaunchBehavior,
-                savedSettings.showLinuxJavaPackageManagerReminder(),
-                savedSettings.javaRuntimePaths()
-        );
-        if (settings.equals(savedSettings)) return;
         try {
+            GameSettings settings = new GameSettings(
+                    savedSettings.fullscreen(),
+                    savedSettings.windowWidth(),
+                    savedSettings.windowHeight(),
+                    savedSettings.allocatedMemoryGigabytes(),
+                    savedSettings.lowMemoryWarning(),
+                    savedSettings.jvmArguments(),
+                    selectedLanguage,
+                    selectedLaunchBehavior,
+                    savedSettings.showLinuxJavaPackageManagerReminder(),
+                    savedSettings.javaRuntimePaths(),
+                    githubRepositories
+            );
+            if (settings.equals(savedSettings)) {
+                this.showGitHubRepositories(settings.githubModRepositories());
+                return;
+            }
             this.launcherService.updateSettings(settings);
+            this.showGitHubRepositories(settings.githubModRepositories());
         }
         catch (Exception exception) {
             this.showSaveError(exception);
+            this.showGitHubRepositories(savedSettings.githubModRepositories());
             this.launchBehaviorSelector.setSelectedItem(savedSettings.launchBehavior());
             this.languageSelector.setSelectedItem(savedSettings.language());
         }

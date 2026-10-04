@@ -22,6 +22,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.HttpRetryException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -42,6 +43,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+//download manager for curseforge and modrinth
 public final class ModDownloadManager {
     @NotNull
     private static final String MODRINTH_API = "https://api.modrinth.com/v2";
@@ -115,9 +117,15 @@ public final class ModDownloadManager {
     }
 
     @NotNull
-    public synchronized ModDownloadSearchPage search(@NotNull ModDownloadPlatform platform, @NotNull String searchText, int offset) throws IOException, InterruptedException {
+    public synchronized ModDownloadSearchPage search(
+            @NotNull ModDownloadPlatform platform,
+            @NotNull String searchText,
+            int offset,
+            @NotNull List<String> githubRepositoryUrls
+    ) throws IOException, InterruptedException {
         String trimmedSearch = searchText.trim();
         List<ModDownloadProject> projects = new ArrayList<>();
+        Set<String> configuredGitHubProjects = new HashSet<>();
         long totalResults = -1L;
         if (platform == ModDownloadPlatform.MODRINTH) {
             String facets = "[[\"project_type:mod\"],[\"versions:" + SquirrelLauncher.GAME_VERSION
@@ -154,7 +162,7 @@ public final class ModDownloadManager {
                 ));
             }
         }
-        else {
+        else if (platform == ModDownloadPlatform.CURSEFORGE) {
             String url = ModDownloadManager.CURSEFORGE_API
                     + "/mods/search?gameId=" + ModDownloadManager.CURSEFORGE_MINECRAFT_GAME_ID
                     + "&classId=" + ModDownloadManager.CURSEFORGE_MOD_CLASS_ID
@@ -207,6 +215,21 @@ public final class ModDownloadManager {
                 ));
             }
         }
+        else if (offset <= 0) {
+            String normalizedSearch = trimmedSearch.toLowerCase(Locale.ROOT);
+            for (String repositoryUrl : githubRepositoryUrls) {
+                GitHubModRepository repository = GitHubModRepository.parse(repositoryUrl);
+                configuredGitHubProjects.add(repository.projectId());
+                ModDownloadProject project = this.githubProject(repository);
+                if (!normalizedSearch.isEmpty()
+                        && !project.name().toLowerCase(Locale.ROOT).contains(normalizedSearch)
+                        && !project.author().toLowerCase(Locale.ROOT).contains(normalizedSearch)
+                        && !project.description().toLowerCase(Locale.ROOT).contains(normalizedSearch)
+                        && !project.projectId().toLowerCase(Locale.ROOT).contains(normalizedSearch)) continue;
+                projects.add(project);
+            }
+            totalResults = projects.size();
+        }
         int nextOffset = Math.max(0, offset) + projects.size();
         boolean hasMore = totalResults >= 0L
                 ? nextOffset < totalResults
@@ -216,6 +239,8 @@ public final class ModDownloadManager {
             Set<String> favoriteKeys = new HashSet<>();
             for (ModDownloadProject favorite : this.favoriteProjects.values()) {
                 if (favorite.platform() != platform) continue;
+                if (platform == ModDownloadPlatform.GITHUB
+                        && !configuredGitHubProjects.contains(favorite.projectId())) continue;
                 favorites.add(favorite);
                 favoriteKeys.add(ModDownloadManager.favoriteKey(platform, favorite.projectId()));
             }
@@ -295,6 +320,36 @@ public final class ModDownloadManager {
                     false
             );
         }
+        if (project.platform() == ModDownloadPlatform.GITHUB) {
+            GitHubModRepository repository = GitHubModRepository.parse(
+                    "https://github.com/" + project.projectId()
+            );
+            HttpRequest request = HttpRequest.newBuilder(URI.create(repository.apiUrl() + "/readme"))
+                    .timeout(ModDownloadManager.REQUEST_TIMEOUT)
+                    .header("Accept", "application/vnd.github.raw+json")
+                    .header("X-GitHub-Api-Version", "2022-11-28")
+                    .header("User-Agent", ModDownloadManager.USER_AGENT)
+                    .GET()
+                    .build();
+            HttpResponse<String> response = this.httpClient.send(
+                    request,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
+            );
+            if (response.statusCode() == 404) {
+                return new ModDownloadProjectDescription(project.description(), false);
+            }
+            if (response.statusCode() / 100 != 2) {
+                throw ModDownloadManager.requestFailure(
+                        response.statusCode(),
+                        project.platform(),
+                        "GitHub README"
+                );
+            }
+            return new ModDownloadProjectDescription(
+                    response.body().isBlank() ? project.description() : response.body(),
+                    false
+            );
+        }
         JsonObject response = this.requestJson(
                 ModDownloadManager.CURSEFORGE_API + "/mods/"
                         + ModDownloadManager.encodePathSegment(project.projectId()) + "/description",
@@ -319,12 +374,15 @@ public final class ModDownloadManager {
         }
         String iconHost = iconUri.getHost();
         if (!"https".equalsIgnoreCase(iconUri.getScheme()) || iconHost == null) return null;
-        boolean trustedIconHost = project.platform() == ModDownloadPlatform.MODRINTH
-                ? iconHost.equalsIgnoreCase(ModDownloadManager.MODRINTH_DOWNLOAD_HOST)
-                : iconHost.equalsIgnoreCase(ModDownloadManager.CURSEFORGE_DOWNLOAD_DOMAIN)
-                        || iconHost.toLowerCase(Locale.ROOT).endsWith(
-                                "." + ModDownloadManager.CURSEFORGE_DOWNLOAD_DOMAIN
-                        );
+        boolean trustedIconHost = switch (project.platform()) {
+            case MODRINTH -> iconHost.equalsIgnoreCase(ModDownloadManager.MODRINTH_DOWNLOAD_HOST);
+            case CURSEFORGE -> iconHost.equalsIgnoreCase(ModDownloadManager.CURSEFORGE_DOWNLOAD_DOMAIN)
+                    || iconHost.toLowerCase(Locale.ROOT).endsWith(
+                            "." + ModDownloadManager.CURSEFORGE_DOWNLOAD_DOMAIN
+                    );
+            case GITHUB -> iconHost.equalsIgnoreCase("avatars.githubusercontent.com")
+                    || iconHost.toLowerCase(Locale.ROOT).endsWith(".githubusercontent.com");
+        };
         if (!trustedIconHost) return null;
 
         HttpRequest.Builder request = HttpRequest.newBuilder(iconUri)
@@ -417,7 +475,7 @@ public final class ModDownloadManager {
             JsonArray versions = this.requestJson(url, project.platform()).getAsJsonArray();
             files.addAll(this.modrinthFiles(project, versions));
         }
-        else {
+        else if (project.platform() == ModDownloadPlatform.CURSEFORGE) {
             String url = ModDownloadManager.CURSEFORGE_API
                     + "/mods/" + ModDownloadManager.encode(project.projectId()) + "/files"
                     + "?gameVersion=" + ModDownloadManager.encode(SquirrelLauncher.GAME_VERSION)
@@ -465,6 +523,50 @@ public final class ModDownloadManager {
                         sha1.isBlank() ? null : sha1,
                         ModDownloadManager.longValue(file, "fileLength")
                 ));
+            }
+        }
+        else {
+            GitHubModRepository repository = GitHubModRepository.parse(
+                    "https://github.com/" + project.projectId()
+            );
+            JsonArray releases = this.requestJson(
+                    repository.apiUrl() + "/releases?per_page=100",
+                    project.platform()
+            ).getAsJsonArray();
+            for (JsonElement releaseElement : releases) {
+                if (!releaseElement.isJsonObject()) continue;
+                JsonObject release = releaseElement.getAsJsonObject();
+                JsonElement draft = release.get("draft");
+                if (draft != null && draft.isJsonPrimitive() && draft.getAsBoolean()) continue;
+                JsonArray assets = release.getAsJsonArray("assets");
+                if (assets == null) continue;
+                String versionName = ModDownloadManager.string(release, "name");
+                if (versionName.isBlank()) versionName = ModDownloadManager.string(release, "tag_name");
+                JsonElement prerelease = release.get("prerelease");
+                String releaseType = prerelease != null && prerelease.isJsonPrimitive()
+                        && prerelease.getAsBoolean() ? "beta" : "release";
+                for (JsonElement assetElement : assets) {
+                    if (!assetElement.isJsonObject()) continue;
+                    JsonObject asset = assetElement.getAsJsonObject();
+                    String fileName = ModDownloadManager.string(asset, "name");
+                    if (!fileName.toLowerCase(Locale.ROOT).endsWith(".jar")) continue;
+                    String fileId = ModDownloadManager.string(asset, "id");
+                    String downloadUrl = ModDownloadManager.string(asset, "browser_download_url");
+                    if (fileId.isBlank() || downloadUrl.isBlank()) continue;
+                    files.add(new ModDownloadFile(
+                            project.platform(),
+                            project.projectId(),
+                            fileId,
+                            project.name(),
+                            project.pageUrl(),
+                            versionName,
+                            releaseType,
+                            fileName,
+                            downloadUrl,
+                            null,
+                            ModDownloadManager.longValue(asset, "size")
+                    ));
+                }
             }
         }
         return List.copyOf(files);
@@ -561,7 +663,7 @@ public final class ModDownloadManager {
                     }
                 }
             }
-            else {
+            else if (currentFile.platform() == ModDownloadPlatform.CURSEFORGE) {
                 JsonObject response = this.requestJson(
                         ModDownloadManager.CURSEFORGE_API + "/mods/"
                                 + ModDownloadManager.encodePathSegment(currentFile.projectId())
@@ -693,6 +795,9 @@ public final class ModDownloadManager {
                     this.favoriteProjects.containsKey(ModDownloadManager.favoriteKey(platform, projectId))
             );
         }
+        if (platform == ModDownloadPlatform.GITHUB) {
+            return this.githubProject(GitHubModRepository.parse("https://github.com/" + projectId));
+        }
         JsonObject response = this.requestJson(
                 ModDownloadManager.CURSEFORGE_API + "/mods/"
                         + ModDownloadManager.encodePathSegment(projectId),
@@ -737,6 +842,32 @@ public final class ModDownloadManager {
     }
 
     @NotNull
+    private ModDownloadProject githubProject(@NotNull GitHubModRepository repository)
+            throws IOException, InterruptedException {
+        JsonObject project = this.requestJson(repository.apiUrl(), ModDownloadPlatform.GITHUB).getAsJsonObject();
+        String name = ModDownloadManager.string(project, "name");
+        if (name.isBlank()) name = repository.repository();
+        JsonObject owner = project.getAsJsonObject("owner");
+        String author = owner == null ? repository.owner() : ModDownloadManager.string(owner, "login");
+        if (author.isBlank()) author = repository.owner();
+        String iconUrl = owner == null ? "" : ModDownloadManager.string(owner, "avatar_url");
+        String projectId = repository.projectId();
+        return new ModDownloadProject(
+                ModDownloadPlatform.GITHUB,
+                projectId,
+                name,
+                author,
+                ModDownloadManager.string(project, "description"),
+                iconUrl.isBlank() ? null : iconUrl,
+                repository.releasesUrl(),
+                0L,
+                this.favoriteProjects.containsKey(
+                        ModDownloadManager.favoriteKey(ModDownloadPlatform.GITHUB, projectId)
+                )
+        );
+    }
+
+    @NotNull
     private static String favoriteKey(@NotNull ModDownloadPlatform platform, @NotNull String projectId) {
         return platform.name() + ':' + projectId;
     }
@@ -757,12 +888,14 @@ public final class ModDownloadManager {
         if (!"https".equalsIgnoreCase(downloadUri.getScheme()) || downloadHost == null) {
             throw new IOException("The provider returned an insecure mod download URL.");
         }
-        boolean trustedDownloadHost = file.platform() == ModDownloadPlatform.MODRINTH
-                ? downloadHost.equalsIgnoreCase(ModDownloadManager.MODRINTH_DOWNLOAD_HOST)
-                : downloadHost.equalsIgnoreCase(ModDownloadManager.CURSEFORGE_DOWNLOAD_DOMAIN)
-                        || downloadHost.toLowerCase(Locale.ROOT).endsWith(
-                                "." + ModDownloadManager.CURSEFORGE_DOWNLOAD_DOMAIN
-                        );
+        boolean trustedDownloadHost = switch (file.platform()) {
+            case MODRINTH -> downloadHost.equalsIgnoreCase(ModDownloadManager.MODRINTH_DOWNLOAD_HOST);
+            case CURSEFORGE -> downloadHost.equalsIgnoreCase(ModDownloadManager.CURSEFORGE_DOWNLOAD_DOMAIN)
+                    || downloadHost.toLowerCase(Locale.ROOT).endsWith(
+                            "." + ModDownloadManager.CURSEFORGE_DOWNLOAD_DOMAIN
+                    );
+            case GITHUB -> downloadHost.equalsIgnoreCase("github.com");
+        };
         if (!trustedDownloadHost) {
             throw new IOException("The provider returned an unexpected mod download host: " + downloadHost);
         }
@@ -800,12 +933,16 @@ public final class ModDownloadManager {
         if (platform == ModDownloadPlatform.CURSEFORGE) {
             request.header("x-api-key", this.requiredCurseForgeApiKey());
         }
+        else if (platform == ModDownloadPlatform.GITHUB) {
+            request.setHeader("Accept", "application/vnd.github+json");
+            request.header("X-GitHub-Api-Version", "2022-11-28");
+        }
         HttpResponse<String> response = this.httpClient.send(
                 request.GET().build(),
                 HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
         );
         if (response.statusCode() / 100 != 2) {
-            throw new IOException("HTTP " + response.statusCode() + " while requesting " + platform);
+            throw ModDownloadManager.requestFailure(response.statusCode(), platform, platform.name());
         }
         try {
             return JsonParser.parseString(response.body());
@@ -822,6 +959,18 @@ public final class ModDownloadManager {
                 "CurseForge requires a SquirrelLauncher API key. Set SQUIRREL_CURSEFORGE_API_KEY "
                         + "or -Dsquirrellauncher.curseforgeApiKey before starting the launcher."
         );
+    }
+
+    @NotNull
+    private static IOException requestFailure(
+            int statusCode,
+            @NotNull ModDownloadPlatform platform,
+        @NotNull String requestName
+    ) {
+        if (platform == ModDownloadPlatform.GITHUB && statusCode == 403) {
+            return new HttpRetryException("GitHub API request forbidden", statusCode);
+        }
+        return new IOException("HTTP " + statusCode + " while requesting " + requestName + '.');
     }
 
     @NotNull

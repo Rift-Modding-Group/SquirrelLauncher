@@ -110,7 +110,8 @@ public final class LauncherService implements AutoCloseable {
                 savedSettings.language(),
                 savedSettings.launchBehavior(),
                 false,
-                savedSettings.javaRuntimePaths()
+                savedSettings.javaRuntimePaths(),
+                savedSettings.githubModRepositories()
         ));
     }
 
@@ -130,7 +131,8 @@ public final class LauncherService implements AutoCloseable {
                 savedSettings.language(),
                 savedSettings.launchBehavior(),
                 savedSettings.showLinuxJavaPackageManagerReminder(),
-                javaRuntimePaths
+                javaRuntimePaths,
+                savedSettings.githubModRepositories()
         ));
     }
 
@@ -477,7 +479,12 @@ public final class LauncherService implements AutoCloseable {
             @NotNull String searchText,
             int offset
     ) throws Exception {
-        return this.modDownloadManager.search(platform, searchText, offset);
+        return this.modDownloadManager.search(
+                platform,
+                searchText,
+                offset,
+                this.settingsManager.settings().githubModRepositories()
+        );
     }
 
     @NotNull

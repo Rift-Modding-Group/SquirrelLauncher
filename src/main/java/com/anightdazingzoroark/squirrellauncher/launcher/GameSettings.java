@@ -1,5 +1,6 @@
 package com.anightdazingzoroark.squirrellauncher.launcher;
 
+import com.anightdazingzoroark.squirrellauncher.minecraft.mod.GitHubModRepository;
 import org.jetbrains.annotations.NotNull;
 
 import java.lang.management.ManagementFactory;
@@ -19,7 +20,8 @@ public record GameSettings(
         @NotNull LauncherLanguage language,
         @NotNull LaunchBehavior launchBehavior,
         boolean showLinuxJavaPackageManagerReminder,
-        @NotNull List<Path> javaRuntimePaths
+        @NotNull List<Path> javaRuntimePaths,
+        @NotNull List<String> githubModRepositories
 ) {
     public static final int MINIMUM_ALLOCATED_MEMORY_GIGABYTES = 1;
     public static final int MAXIMUM_ALLOCATED_MEMORY_GIGABYTES;
@@ -49,6 +51,11 @@ public record GameSettings(
         jvmArguments = List.copyOf(jvmArguments);
         javaRuntimePaths = javaRuntimePaths.stream()
                 .map(path -> path.toAbsolutePath().normalize())
+                .distinct()
+                .toList();
+        githubModRepositories = githubModRepositories.stream()
+                .map(GitHubModRepository::parse)
+                .map(GitHubModRepository::releasesUrl)
                 .distinct()
                 .toList();
         if (windowWidth < 320 || windowWidth > 7680) {
@@ -84,7 +91,8 @@ public record GameSettings(
                 LauncherLanguage.systemDefault(),
                 LaunchBehavior.DO_NOTHING,
                 true,
-                List.of()
+                List.of(),
+                List.of("https://github.com/kappa-maintainer/Celeritas-auto-build/releases")
         );
     }
 }

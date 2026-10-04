@@ -11,6 +11,7 @@ import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.io.IOException;
 import java.io.Serial;
+import java.net.HttpRetryException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -90,6 +91,7 @@ public final class LoaderVersionComboBox extends JPanel {
         this.fetchProgress.setVisible(hasLoader);
         this.fetchProgress.setIndeterminate(hasLoader);
         this.fetchStatusLabel.setText(Localization.text("loader.versions.loading"));
+        this.fetchStatusLabel.setToolTipText(null);
         this.versions.setToolTipText(hasLoader
                 ? Localization.text("loader.versions.loading")
                 : null);
@@ -136,6 +138,7 @@ public final class LoaderVersionComboBox extends JPanel {
                     LoaderVersionComboBox.this.updating = false;
                     LoaderVersionComboBox.this.versions.setEnabled(!mergedVersions.isEmpty());
                     LoaderVersionComboBox.this.versions.setToolTipText(null);
+                    LoaderVersionComboBox.this.fetchStatusLabel.setToolTipText(null);
                     LoaderVersionComboBox.this.fetchProgress.setIndeterminate(false);
                     LoaderVersionComboBox.this.fetchStatus.setVisible(false);
                     LoaderVersionComboBox.this.selectionChanged.run();
@@ -146,14 +149,16 @@ public final class LoaderVersionComboBox extends JPanel {
                     Thread.currentThread().interrupt();
                 }
                 catch (ExecutionException exception) {
+                    Throwable cause = exception.getCause();
+                    boolean githubForbidden = type == InstanceType.CLEANROOM
+                            && cause instanceof HttpRetryException retryException
+                            && retryException.responseCode() == 403;
                     LoaderVersionComboBox.this.fetchProgress.setIndeterminate(false);
                     LoaderVersionComboBox.this.fetchProgress.setVisible(false);
                     LoaderVersionComboBox.this.fetchStatusLabel.setText(
-                            Localization.text("loader.versions.unavailable")
+                            Localization.text(githubForbidden ? "common.error.github_rate_limit": "loader.versions.unavailable")
                     );
-                    LoaderVersionComboBox.this.versions.setToolTipText(
-                            Localization.text("loader.versions.load_failed")
-                    );
+                    LoaderVersionComboBox.this.versions.setToolTipText(githubForbidden ? null : Localization.text("loader.versions.load_failed"));
                     LoaderVersionComboBox.this.contentSizeChanged.run();
                 }
             }

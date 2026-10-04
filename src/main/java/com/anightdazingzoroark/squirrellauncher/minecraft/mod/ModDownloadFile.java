@@ -3,6 +3,7 @@ package com.anightdazingzoroark.squirrellauncher.minecraft.mod;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+//representation of a mod that is about to be downloaded from the launcher
 public record ModDownloadFile(
         @NotNull ModDownloadPlatform platform,
         @NotNull String projectId,

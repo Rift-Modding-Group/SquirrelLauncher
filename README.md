@@ -13,7 +13,7 @@ A Minecraft 1.12.2 launcher and only 1.12.2. Checklist:
 * [ ] Built-in [Pack Companion](https://github.com/AnasDevO/PackTemplateCompanion)
 * [ ] Built-in [Crash Assistant](https://www.curseforge.com/minecraft/mc-mods/crash-assistant)
 * [ ] Built-in [MCreator Detector](https://github.com/darklysteamgear/mcreatorDetector)
-* [ ] Mod downloading from Curseforge and Modrinth
+* [X] Mod downloading from Curseforge, Modrinth, and GitHub
 * [ ] Curseforge and Modrinth modpack import as instances
 * [ ] Custom themes
 * [ ] World management

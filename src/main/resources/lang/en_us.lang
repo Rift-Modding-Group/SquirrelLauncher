@@ -1,3 +1,6 @@
+# universal stuff
+common.error.github_rate_limit=It looks like you have been rate limited by GitHub. Try again later.
+
 # Main window
 main.button.add_instance=Add new instance
 main.button.refresh=Refresh
@@ -67,6 +70,7 @@ mod.download.heading=Download mods for {0}
 mod.download.provider=Provider:
 mod.download.provider.modrinth=Modrinth
 mod.download.provider.curseforge=CurseForge
+mod.download.provider.github=GitHub
 mod.download.provider.unknown=Unknown
 mod.download.search=Search:
 mod.download.button.download=Download and install
@@ -309,6 +313,12 @@ settings.launcher.language=Language:
 settings.launcher.language.en_us=English (United States)
 settings.launcher.language.es_mx=Spanish (Mexico)
 settings.launcher.language_restart=Language changes apply after restarting SquirrelLauncher.
+settings.launcher.github.section=GitHub mod repositories
+settings.launcher.github.instructions=Add public GitHub repositories whose release JARs should appear in the mod downloader. Use at your own risk.
+settings.launcher.github.repository=Repository:
+settings.launcher.github.add=Add repository
+settings.launcher.github.remove=Remove repository
+settings.launcher.github.save=Save repositories
 settings.error.save=Could not save settings
 
 # Java

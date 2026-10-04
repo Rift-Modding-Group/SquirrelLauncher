@@ -14,8 +14,9 @@ import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
-import javax.swing.table.TableRowSorter;
 import javax.swing.table.TableCellRenderer;
+import javax.swing.table.TableColumn;
+import javax.swing.table.TableRowSorter;
 import java.awt.Component;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -182,6 +183,20 @@ public final class ModDownloadProjectTable extends JTable {
         this.installedProjectKeys.clear();
         this.installedProjectKeys.addAll(installedProjectKeys);
         this.repaint();
+    }
+
+    public void setDownloadsColumnVisible(boolean visible) {
+        TableColumn downloadsColumn = this.getColumnModel().getColumn(4);
+        if (visible) {
+            downloadsColumn.setMaxWidth(Integer.MAX_VALUE);
+            downloadsColumn.setMinWidth(15);
+            downloadsColumn.setPreferredWidth(110);
+        }
+        else {
+            downloadsColumn.setMinWidth(0);
+            downloadsColumn.setPreferredWidth(0);
+            downloadsColumn.setMaxWidth(0);
+        }
     }
 
     @Override

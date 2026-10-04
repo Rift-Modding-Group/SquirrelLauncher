@@ -53,6 +53,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
+import java.net.HttpRetryException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.HashSet;
@@ -167,10 +168,16 @@ public final class ModDownloadDialog extends JDialog {
         ImageIcon curseForgeSourceIcon = new ImageIcon(
                 ModDownloadDialog.class.getResource("/icons/curseforge.png")
         );
+        ImageIcon githubSourceIcon = new ImageIcon(
+                ModDownloadDialog.class.getResource("/icons/github.png")
+        );
         Icon modrinthIcon = new ImageIcon(modrinthSourceIcon.getImage().getScaledInstance(
                 20, 20, Image.SCALE_SMOOTH
         ));
         Icon curseForgeIcon = new ImageIcon(curseForgeSourceIcon.getImage().getScaledInstance(
+                20, 20, Image.SCALE_SMOOTH
+        ));
+        Icon githubIcon = new ImageIcon(githubSourceIcon.getImage().getScaledInstance(
                 20, 20, Image.SCALE_SMOOTH
         ));
         this.providerSelector.setRenderer(new DefaultListCellRenderer() {
@@ -190,7 +197,11 @@ public final class ModDownloadDialog extends JDialog {
                     label.setText(Localization.text(
                             "mod.download.provider." + platform.name().toLowerCase()
                     ));
-                    label.setIcon(platform == ModDownloadPlatform.MODRINTH ? modrinthIcon : curseForgeIcon);
+                    label.setIcon(switch (platform) {
+                        case MODRINTH -> modrinthIcon;
+                        case CURSEFORGE -> curseForgeIcon;
+                        case GITHUB -> githubIcon;
+                    });
                     label.setIconTextGap(6);
                 }
                 return label;
@@ -295,6 +306,8 @@ public final class ModDownloadDialog extends JDialog {
 
         this.providerSelector.addActionListener(event -> {
             this.searchTimer.stop();
+            ModDownloadPlatform platform = (ModDownloadPlatform) this.providerSelector.getSelectedItem();
+            this.projectTable.setDownloadsColumnVisible(platform != ModDownloadPlatform.GITHUB);
             this.search();
         });
         this.searchField.getDocument().addDocumentListener(new DocumentListener() {
@@ -889,9 +902,12 @@ public final class ModDownloadDialog extends JDialog {
 
     private void showFailure(@NotNull String title, @NotNull ExecutionException exception) {
         Throwable cause = exception.getCause();
-        String message = cause == null || cause.getMessage() == null || cause.getMessage().isBlank()
-                ? exception.getClass().getSimpleName()
-                : cause.getMessage();
+        String message = cause instanceof HttpRetryException retryException
+                && retryException.responseCode() == 403
+                ? Localization.text("common.error.github_rate_limit")
+                : cause == null || cause.getMessage() == null || cause.getMessage().isBlank()
+                        ? exception.getClass().getSimpleName()
+                        : cause.getMessage();
         JOptionPane.showMessageDialog(this, message, title, JOptionPane.ERROR_MESSAGE);
     }
 

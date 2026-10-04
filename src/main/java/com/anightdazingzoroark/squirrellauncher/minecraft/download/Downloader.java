@@ -7,6 +7,7 @@ import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
+import java.net.HttpRetryException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -44,7 +45,9 @@ public final class Downloader {
             try {
                 HttpResponse<String> response = Downloader.CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
                 if (response.statusCode() / 100 == 2) return response.body();
-                failure = new IOException("HTTP " + response.statusCode() + " while requesting " + url);
+                failure = response.statusCode() == 403
+                        ? new HttpRetryException("HTTP 403 while requesting " + url, response.statusCode())
+                        : new IOException("HTTP " + response.statusCode() + " while requesting " + url);
                 if (Downloader.isTerminalStatus(response.statusCode())) break;
             }
             catch (IOException exception) {

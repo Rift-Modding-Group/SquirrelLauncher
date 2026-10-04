@@ -1,3 +1,6 @@
+# cosas en común
+common.error.github_rate_limit=Parece que GitHub ha limitado temporalmente tus solicitudes. Inténtalo de nuevo más tarde.
+
 # Ventana principal
 main.button.add_instance=Agregar nueva instancia
 main.button.refresh=Actualizar
@@ -67,6 +70,7 @@ mod.download.heading=Descargar mods para {0}
 mod.download.provider=Proveedor:
 mod.download.provider.modrinth=Modrinth
 mod.download.provider.curseforge=CurseForge
+mod.download.provider.github=GitHub
 mod.download.provider.unknown=Desconocido
 mod.download.search=Buscar:
 mod.download.button.download=Descargar e instalar
@@ -309,6 +313,12 @@ settings.launcher.language=Idioma:
 settings.launcher.language.en_us=Inglés (Estados Unidos)
 settings.launcher.language.es_mx=Español (México)
 settings.launcher.language_restart=Los cambios de idioma se aplicarán después de reiniciar SquirrelLauncher.
+settings.launcher.github.section=Repositorios de mods de GitHub
+settings.launcher.github.instructions=Agrega repositorios públicos de GitHub cuyos JARs de lanzamiento deben aparecer en el descargador de mods. Usa bajo tu propio riesgo.
+settings.launcher.github.repository=Repositorio:
+settings.launcher.github.add=Agregar repositorio
+settings.launcher.github.remove=Eliminar repositorio
+settings.launcher.github.save=Guardar repositorios
 settings.error.save=No se pudo guardar la configuración
 
 # Java

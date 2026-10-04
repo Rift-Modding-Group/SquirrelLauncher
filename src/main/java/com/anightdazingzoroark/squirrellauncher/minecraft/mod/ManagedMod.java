@@ -6,6 +6,7 @@ import org.jetbrains.annotations.Nullable;
 import java.awt.image.BufferedImage;
 import java.nio.file.Path;
 
+//representation of a downloaded mod in the launcher
 public record ManagedMod(
         @NotNull String fileName,
         @NotNull String name,

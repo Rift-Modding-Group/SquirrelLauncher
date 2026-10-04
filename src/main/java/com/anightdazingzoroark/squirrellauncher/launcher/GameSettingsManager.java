@@ -74,6 +74,15 @@ public final class GameSettingsManager {
                     catch (RuntimeException ignored) {}
                 }
             }
+            List<String> githubModRepositories = new ArrayList<>();
+            if (root.has("githubModRepositories") && root.get("githubModRepositories").isJsonArray()) {
+                for (JsonElement repository : root.getAsJsonArray("githubModRepositories")) {
+                    if (repository.isJsonPrimitive()) githubModRepositories.add(repository.getAsString());
+                }
+            }
+            else {
+                githubModRepositories.addAll(GameSettings.defaults().githubModRepositories());
+            }
             this.settings = new GameSettings(
                     root.has("fullscreen") && root.get("fullscreen").getAsBoolean(),
                     root.has("windowWidth") ? root.get("windowWidth").getAsInt() : 854,
@@ -89,7 +98,8 @@ public final class GameSettingsManager {
                             : LaunchBehavior.DO_NOTHING,
                     !root.has("showLinuxJavaPackageManagerReminder")
                             || root.get("showLinuxJavaPackageManagerReminder").getAsBoolean(),
-                    javaRuntimePaths
+                    javaRuntimePaths,
+                    githubModRepositories
             );
         }
         catch (Exception exception) {
@@ -127,6 +137,9 @@ public final class GameSettingsManager {
             javaRuntimePaths.add(javaRuntimePath.toString());
         }
         root.add("javaRuntimePaths", javaRuntimePaths);
+        JsonArray githubModRepositories = new JsonArray();
+        for (String repository : settings.githubModRepositories()) githubModRepositories.add(repository);
+        root.add("githubModRepositories", githubModRepositories);
 
         Path settingsFile = MinecraftPaths.SETTINGS;
         Files.createDirectories(settingsFile.getParent());
