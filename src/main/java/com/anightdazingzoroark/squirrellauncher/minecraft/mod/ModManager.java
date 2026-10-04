@@ -5,6 +5,7 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInst
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -21,12 +22,16 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.StandardCopyOption;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -39,10 +44,16 @@ public final class ModManager {
     private final MinecraftInstance instance;
     @NotNull
     private final Path modsDirectory;
+    @NotNull
+    private final Path metadataFile;
+    @NotNull
+    private final Map<String, InstalledModMetadata> installedMetadata = new HashMap<>();
+    private boolean metadataLoaded;
 
     public ModManager(@NotNull MinecraftInstance instance) {
         this.instance = instance;
         this.modsDirectory = instance.modsDirectory();
+        this.metadataFile = this.modsDirectory.resolve(".squirrellauncher-mods.json");
     }
 
     public void initialize() throws IOException {
@@ -54,6 +65,21 @@ public final class ModManager {
 
     @NotNull
     public ManagedMod install(@NotNull Path source) throws IOException {
+        return this.installWithMetadata(source, null);
+    }
+
+    @NotNull
+    public ManagedMod install(@NotNull Path source, @NotNull ModDownloadFile downloadFile) throws IOException {
+        return this.installWithMetadata(source, new InstalledModMetadata(
+                downloadFile.platform(),
+                downloadFile.projectId(),
+                downloadFile.providerFileId(),
+                downloadFile.projectUrl()
+        ));
+    }
+
+    @NotNull
+    private ManagedMod installWithMetadata(@NotNull Path source, @Nullable InstalledModMetadata downloadMetadata) throws IOException {
         this.initialize();
         ModManager.validateModFile(source);
 
@@ -65,6 +91,19 @@ public final class ModManager {
         }
 
         Files.copy(source, enabledTarget);
+        this.loadMetadata();
+        InstalledModMetadata previousMetadata = downloadMetadata == null
+                ? this.installedMetadata.remove(fileName)
+                : this.installedMetadata.put(fileName, downloadMetadata);
+        try {
+            this.saveMetadata();
+        }
+        catch (IOException exception) {
+            Files.deleteIfExists(enabledTarget);
+            if (previousMetadata == null) this.installedMetadata.remove(fileName);
+            else this.installedMetadata.put(fileName, previousMetadata);
+            throw exception;
+        }
         System.out.println("Installed mod: " + fileName);
         return this.describe(fileName, enabledTarget, ModState.ENABLED);
     }
@@ -97,10 +136,10 @@ public final class ModManager {
 
     public void remove(@NotNull String fileName) throws IOException {
         this.initialize();
-        if (Files.deleteIfExists(this.resolveSafe(fileName)) || Files.deleteIfExists(this.resolveSafe(fileName + DISABLED_SUFFIX))) {
-            return;
-        }
-        throw new IOException("Mod not found: " + fileName);
+        boolean removed = Files.deleteIfExists(this.resolveSafe(fileName)) || Files.deleteIfExists(this.resolveSafe(fileName + DISABLED_SUFFIX));
+        if (!removed) throw new IOException("Mod not found: " + fileName);
+        this.loadMetadata();
+        if (this.installedMetadata.remove(fileName) != null) this.saveMetadata();
     }
 
     @NotNull
@@ -137,6 +176,7 @@ public final class ModManager {
 
     @NotNull
     private ManagedMod describe(@NotNull String fileName, @NotNull Path path, @NotNull ModState state) throws IOException {
+        this.loadMetadata();
         String name = fileName;
         String version = "";
         String description = "";
@@ -256,6 +296,7 @@ public final class ModManager {
         catch (IOException | RuntimeException ignored) {
             // A mod without readable metadata remains manageable by its file name.
         }
+        InstalledModMetadata downloadMetadata = this.installedMetadata.get(fileName);
         return new ManagedMod(
                 fileName,
                 name,
@@ -264,8 +305,80 @@ public final class ModManager {
                 Files.getLastModifiedTime(path).toMillis(),
                 icon,
                 path,
-                state
+                state,
+                downloadMetadata == null ? null : downloadMetadata.platform(),
+                downloadMetadata == null ? null : downloadMetadata.projectId(),
+                downloadMetadata == null ? null : downloadMetadata.fileId(),
+                downloadMetadata == null ? null : downloadMetadata.pageUrl()
         );
+    }
+
+    private void loadMetadata() {
+        if (this.metadataLoaded) return;
+        this.metadataLoaded = true;
+        if (!Files.isRegularFile(this.metadataFile)) return;
+        try {
+            JsonElement metadataRoot = JsonParser.parseString(Files.readString(
+                    this.metadataFile,
+                    StandardCharsets.UTF_8
+            ));
+            if (!metadataRoot.isJsonArray()) return;
+            for (JsonElement metadataElement : metadataRoot.getAsJsonArray()) {
+                if (!metadataElement.isJsonObject()) continue;
+                JsonObject metadata = metadataElement.getAsJsonObject();
+                JsonElement fileNameElement = metadata.get("fileName");
+                JsonElement platformElement = metadata.get("platform");
+                JsonElement projectIdElement = metadata.get("projectId");
+                if (fileNameElement == null || !fileNameElement.isJsonPrimitive()
+                        || platformElement == null || !platformElement.isJsonPrimitive()
+                        || projectIdElement == null || !projectIdElement.isJsonPrimitive()) continue;
+                String fileName = fileNameElement.getAsString();
+                String projectId = projectIdElement.getAsString();
+                JsonElement fileIdElement = metadata.get("fileId");
+                JsonElement pageUrlElement = metadata.get("pageUrl");
+                if (fileName.isBlank() || projectId.isBlank()) continue;
+                try {
+                    this.installedMetadata.put(fileName, new InstalledModMetadata(
+                            ModDownloadPlatform.valueOf(platformElement.getAsString()),
+                            projectId,
+                            fileIdElement != null && fileIdElement.isJsonPrimitive()
+                                    && !fileIdElement.getAsString().isBlank() ? fileIdElement.getAsString() : null,
+                            pageUrlElement != null && pageUrlElement.isJsonPrimitive()
+                                    && !pageUrlElement.getAsString().isBlank() ? pageUrlElement.getAsString() : null
+                    ));
+                }
+                catch (IllegalArgumentException ignored) {}
+            }
+        }
+        catch (IOException | JsonParseException ignored) {
+            this.installedMetadata.clear();
+        }
+    }
+
+    private void saveMetadata() throws IOException {
+        JsonArray metadataRoot = new JsonArray();
+        for (Map.Entry<String, InstalledModMetadata> entry : this.installedMetadata.entrySet()) {
+            JsonObject metadata = new JsonObject();
+            metadata.addProperty("fileName", entry.getKey());
+            metadata.addProperty("platform", entry.getValue().platform().name());
+            metadata.addProperty("projectId", entry.getValue().projectId());
+            if (entry.getValue().fileId() != null) metadata.addProperty("fileId", entry.getValue().fileId());
+            if (entry.getValue().pageUrl() != null) metadata.addProperty("pageUrl", entry.getValue().pageUrl());
+            metadataRoot.add(metadata);
+        }
+        Path temporaryFile = this.metadataFile.resolveSibling(this.metadataFile.getFileName() + ".tmp");
+        Files.writeString(temporaryFile, metadataRoot.toString(), StandardCharsets.UTF_8);
+        try {
+            Files.move(
+                    temporaryFile,
+                    this.metadataFile,
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING
+            );
+        }
+        catch (AtomicMoveNotSupportedException exception) {
+            Files.move(temporaryFile, this.metadataFile, StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 
     private static void validateModFile(@NotNull Path source) throws IOException {
@@ -289,4 +402,11 @@ public final class ModManager {
         if (!result.getParent().equals(root)) throw new IOException("Invalid mod filename: " + fileName);
         return result;
     }
+
+    private record InstalledModMetadata(
+            @NotNull ModDownloadPlatform platform,
+            @NotNull String projectId,
+            @Nullable String fileId,
+            @Nullable String pageUrl
+    ) {}
 }

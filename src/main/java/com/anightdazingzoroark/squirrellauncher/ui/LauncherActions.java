@@ -13,6 +13,7 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaVersion;
 import com.anightdazingzoroark.squirrellauncher.ui.dialogs.AddInstanceDialog;
 import com.anightdazingzoroark.squirrellauncher.ui.dialogs.ChangeLoaderVersionDialog;
 import com.anightdazingzoroark.squirrellauncher.ui.dialogs.ConvertInstanceDialog;
+import com.anightdazingzoroark.squirrellauncher.ui.dialogs.modDownloadDialog.ModDownloadDialog;
 import com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels.InstanceDetailsPanel;
 import com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels.InstanceSidebarPanel;
 import org.jetbrains.annotations.NotNull;
@@ -24,6 +25,7 @@ import javax.swing.SwingWorker;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.Component;
 import java.awt.Desktop;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -427,26 +429,16 @@ public final class LauncherActions {
         this.launcherFrame.updateControlState();
     }
 
-    public void installModRequested() {
+    public void downloadModsRequested() {
         MinecraftInstance instance = this.selectedInstance();
         if (instance == null) return;
-        JFileChooser chooser = new JFileChooser();
-        chooser.setDialogTitle(Localization.text("main.dialog.install_mod"));
-        chooser.setFileFilter(new FileNameExtensionFilter(Localization.text("file_filter.java_archives"), "jar"));
-        if (chooser.showOpenDialog(this.launcherFrame) != JFileChooser.APPROVE_OPTION) return;
-        Path selectedFile = chooser.getSelectedFile().toPath();
-        this.launcherFrame.runTask(
-                instance.id(),
-                Localization.text("main.status.installing_mod", selectedFile.getFileName()),
-                () -> {
-                    this.launcherService.installMod(instance, selectedFile);
-                    return null;
-                },
-                ignored -> {
-                    this.launcherFrame.setStatus(Localization.text("main.status.ready"));
-                    this.refreshMods(instance);
-                }
-        );
+        new ModDownloadDialog(
+                this.launcherFrame,
+                this.launcherService,
+                instance,
+                this.detailsPanel().modsTab().mods(),
+                () -> this.refreshMods(instance)
+        ).showModal();
     }
 
     public void setModEnabledRequested(@NotNull ManagedMod mod, boolean enable) {
@@ -491,6 +483,66 @@ public final class LauncherActions {
         }.execute();
     }
 
+    public void openModPageRequested() {
+        MinecraftInstance instance = this.selectedInstance();
+        ManagedMod mod = this.detailsPanel().modsTab().selectedMod();
+        if (instance == null || mod == null || mod.providerPageUrl() == null) return;
+        try {
+            URI page = URI.create(mod.providerPageUrl());
+            if (!"https".equalsIgnoreCase(page.getScheme()) || page.getHost() == null) {
+                throw new IllegalArgumentException("The stored mod page URL is invalid.");
+            }
+            if (!Desktop.isDesktopSupported()) {
+                throw new UnsupportedOperationException(Localization.text("instance.mods.error.browser_unsupported"));
+            }
+            Desktop desktop = Desktop.getDesktop();
+            if (!desktop.isSupported(Desktop.Action.BROWSE)) {
+                throw new UnsupportedOperationException(Localization.text("instance.mods.error.browser_unsupported"));
+            }
+            desktop.browse(page);
+        }
+        catch (Exception exception) {
+            this.launcherFrame.showError(
+                    Localization.text("instance.mods.error.open_page"),
+                    exception,
+                    instance.id()
+            );
+        }
+    }
+
+    public void checkModUpdateRequested() {
+        MinecraftInstance instance = this.selectedInstance();
+        ManagedMod mod = this.detailsPanel().modsTab().selectedMod();
+        if (instance == null || mod == null || mod.provider() == null || mod.providerProjectId() == null || mod.providerFileId() == null) return;
+        this.launcherFrame.runTask(
+                instance.id(),
+                Localization.text("instance.mods.status.checking_update", mod.name()),
+                () -> this.launcherService.modUpdate(mod),
+                update -> {
+                    this.launcherFrame.setStatus(Localization.text("main.status.ready"));
+                    String message;
+                    if (update == null) {
+                        message = Localization.text("instance.mods.update.none", mod.name());
+                    }
+                    else {
+                        String version = update.versionName().isBlank() ? update.fileName() : update.versionName();
+                        message = Localization.text(
+                                "instance.mods.update.available",
+                                mod.name(),
+                                version,
+                                update.fileName()
+                        );
+                    }
+                    JOptionPane.showMessageDialog(
+                            this.launcherFrame,
+                            message,
+                            Localization.text("instance.mods.dialog.update"),
+                            JOptionPane.INFORMATION_MESSAGE
+                    );
+                }
+        );
+    }
+
     public void removeModRequested() {
         MinecraftInstance instance = this.selectedInstance();
         ManagedMod mod = this.detailsPanel().modsTab().selectedMod();
@@ -517,10 +569,7 @@ public final class LauncherActions {
         );
     }
 
-    public void saveInstanceSettingsRequested(
-            @NotNull String instanceId,
-            @NotNull InstanceLaunchSettings settings
-    ) {
+    public void saveInstanceSettingsRequested(@NotNull String instanceId, @NotNull InstanceLaunchSettings settings) {
         new SwingWorker<MinecraftInstance, Void>() {
             @NotNull
             @Override

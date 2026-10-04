@@ -10,6 +10,12 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceIconM
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceType;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ManagedMod;
+import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadFile;
+import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadManager;
+import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadPlatform;
+import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadProject;
+import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadProjectDescription;
+import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadSearchPage;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModManager;
 import com.anightdazingzoroark.squirrellauncher.minecraft.modpack.MMCPackManager;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntime;
@@ -18,6 +24,7 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaVersion;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.awt.image.BufferedImage;
 import java.lang.management.ManagementFactory;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -44,6 +51,8 @@ public final class LauncherService implements AutoCloseable {
     private final GameSettingsManager settingsManager = new GameSettingsManager();
     @NotNull
     private final InstanceOrderManager instanceOrderManager = new InstanceOrderManager();
+    @NotNull
+    private final ModDownloadManager modDownloadManager = new ModDownloadManager();
 
     public LauncherService(@NotNull Consumer<String> outputListener) {
         this.outputBridge = new LauncherOutputBridge(outputListener);
@@ -414,11 +423,7 @@ public final class LauncherService implements AutoCloseable {
     }
 
     @NotNull
-    public MinecraftInstance recordPlaytime(
-            @NotNull MinecraftInstance instance,
-            long elapsedSeconds,
-            long launchTimeMillis
-    ) throws Exception {
+    public MinecraftInstance recordPlaytime(@NotNull MinecraftInstance instance, long elapsedSeconds, long launchTimeMillis) throws Exception {
         MinecraftInstance current = InstanceManager.load(instance.id());
         long safeElapsedSeconds = Math.max(0, elapsedSeconds);
         long totalTimePlayed = current.totalTimePlayedSeconds();
@@ -466,16 +471,50 @@ public final class LauncherService implements AutoCloseable {
         return new ModManager(instance).list();
     }
 
-    public void installMod(@NotNull MinecraftInstance instance, @NotNull Path source) throws Exception {
-        new ModManager(instance).install(source);
+    @NotNull
+    public ModDownloadSearchPage searchMods(
+            @NotNull ModDownloadPlatform platform,
+            @NotNull String searchText,
+            int offset
+    ) throws Exception {
+        return this.modDownloadManager.search(platform, searchText, offset);
     }
 
     @NotNull
-    public ManagedMod setModEnabled(
-            @NotNull MinecraftInstance instance,
-            @NotNull ManagedMod mod,
-            boolean enabled
-    ) throws Exception {
+    public List<ModDownloadFile> modFiles(@NotNull ModDownloadProject project) throws Exception {
+        return this.modDownloadManager.files(project);
+    }
+
+    @NotNull
+    public ModDownloadProjectDescription modDescription(@NotNull ModDownloadProject project) throws Exception {
+        return this.modDownloadManager.description(project);
+    }
+
+    @Nullable
+    public BufferedImage modIcon(@NotNull ModDownloadProject project) throws Exception {
+        return this.modDownloadManager.icon(project);
+    }
+
+    @NotNull
+    public List<ModDownloadFile> modDependencies(@NotNull MinecraftInstance instance, @NotNull List<ModDownloadFile> files) throws Exception {
+        return this.modDownloadManager.dependencies(instance, files);
+    }
+
+    public boolean toggleModFavorite(@NotNull ModDownloadProject project) throws Exception {
+        return this.modDownloadManager.toggleFavorite(project);
+    }
+
+    @Nullable
+    public ModDownloadFile modUpdate(@NotNull ManagedMod mod) throws Exception {
+        return this.modDownloadManager.updateFor(mod);
+    }
+
+    public void installMod(@NotNull MinecraftInstance instance, @NotNull ModDownloadFile file) throws Exception {
+        this.modDownloadManager.install(instance, file);
+    }
+
+    @NotNull
+    public ManagedMod setModEnabled(@NotNull MinecraftInstance instance, @NotNull ManagedMod mod, boolean enabled) throws Exception {
         ModManager manager = new ModManager(instance);
         return enabled ? manager.enable(mod.fileName()) : manager.disable(mod.fileName());
     }

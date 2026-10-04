@@ -14,5 +14,9 @@ public record ManagedMod(
         long lastModifiedMillis,
         @Nullable BufferedImage icon,
         @NotNull Path path,
-        @NotNull ModState state
+        @NotNull ModState state,
+        @Nullable ModDownloadPlatform provider,
+        @Nullable String providerProjectId,
+        @Nullable String providerFileId,
+        @Nullable String providerPageUrl
 ) {}

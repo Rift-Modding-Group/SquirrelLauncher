@@ -4,6 +4,8 @@ out/
 !**/src/test/**/out/
 .kotlin
 AGENTS.md
+OTHER.md
+.idea/doNotAskNotifications.xml
 
 ### Eclipse ###
 .apt_generated

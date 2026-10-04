@@ -33,13 +33,17 @@ public final class InstanceModsTab extends JPanel {
     @NotNull
     private final SelectedModInfo selectedModInfo = new SelectedModInfo();
     @NotNull
-    private final JButton installModButton = new JButton(Localization.text("main.button.install_mod"));
+    private final JButton downloadModsButton = new JButton(Localization.text("main.button.download_mods"));
     @NotNull
     private final JButton openModsFolderButton = new JButton(Localization.text("main.button.open_mods_folder"));
     @NotNull
     private final JButton openConfigsFolderButton = new JButton(Localization.text("main.button.open_configs_folder"));
     @NotNull
     private final JPopupMenu modActionsMenu = new JPopupMenu();
+    @NotNull
+    private final JMenuItem viewModPageItem = new JMenuItem(Localization.text("instance.mods.menu.view_page"));
+    @NotNull
+    private final JMenuItem checkModUpdatesItem = new JMenuItem(Localization.text("instance.mods.menu.check_updates"));
 
     public InstanceModsTab(@NotNull LauncherActions launcherActions) {
         super(new BorderLayout(0, 8));
@@ -69,6 +73,7 @@ public final class InstanceModsTab extends JPanel {
         this.modTable.getColumnModel().getColumn(2).setPreferredWidth(320);
         this.modTable.getColumnModel().getColumn(3).setPreferredWidth(100);
         this.modTable.getColumnModel().getColumn(4).setPreferredWidth(140);
+        this.modTable.getColumnModel().getColumn(5).setPreferredWidth(100);
         this.modTable.getSelectionModel().addListSelectionListener(event -> {
             if (event.getValueIsAdjusting()) return;
 
@@ -83,6 +88,16 @@ public final class InstanceModsTab extends JPanel {
                 if (row < 0) return;
 
                 InstanceModsTab.this.modTable.setRowSelectionInterval(row, row);
+                ManagedMod mod = InstanceModsTab.this.selectedMod();
+                InstanceModsTab.this.viewModPageItem.setEnabled(
+                        mod != null && mod.providerPageUrl() != null && !mod.providerPageUrl().isBlank()
+                );
+                InstanceModsTab.this.checkModUpdatesItem.setEnabled(
+                        mod != null
+                                && mod.provider() != null
+                                && mod.providerProjectId() != null
+                                && mod.providerFileId() != null
+                );
                 InstanceModsTab.this.modActionsMenu.show(InstanceModsTab.this.modTable, e.getX(), e.getY());
             }
 
@@ -100,29 +115,43 @@ public final class InstanceModsTab extends JPanel {
 
         JPanel actions = new JPanel(new BorderLayout());
         actions.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 8));
-        JPanel modActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        modActions.add(this.installModButton);
-        actions.add(modActions, BorderLayout.WEST);
-        actions.add(this.openModsFolderButton, BorderLayout.EAST);
+        JPanel leftActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        leftActions.add(this.downloadModsButton);
+        actions.add(leftActions, BorderLayout.WEST);
+        JPanel rightActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        rightActions.add(this.openModsFolderButton);
+        rightActions.add(this.openConfigsFolderButton);
+        actions.add(rightActions, BorderLayout.EAST);
+
         JPanel bottomContent = new JPanel(new BorderLayout(0, 8));
         bottomContent.add(this.selectedModInfo, BorderLayout.CENTER);
         bottomContent.add(actions, BorderLayout.SOUTH);
         this.add(bottomContent, BorderLayout.SOUTH);
 
-        this.installModButton.addActionListener(event -> this.launcherActions.installModRequested());
+        this.downloadModsButton.addActionListener(event -> this.launcherActions.downloadModsRequested());
         this.openModsFolderButton.addActionListener(event -> this.launcherActions.openModsFolderRequested());
         this.openConfigsFolderButton.addActionListener(event -> this.launcherActions.openConfigsFolderRequested());
     }
 
     private void configureMenu() {
+        this.viewModPageItem.addActionListener(event -> this.launcherActions.openModPageRequested());
+        this.checkModUpdatesItem.addActionListener(event -> this.launcherActions.checkModUpdateRequested());
         JMenuItem deleteModItem = new JMenuItem(Localization.text("instance.mods.menu.remove"));
         deleteModItem.addActionListener(event -> this.launcherActions.removeModRequested());
 
+        this.modActionsMenu.add(this.viewModPageItem);
+        this.modActionsMenu.add(this.checkModUpdatesItem);
+        this.modActionsMenu.addSeparator();
         this.modActionsMenu.add(deleteModItem);
     }
 
     public void setMods(@NotNull List<ManagedMod> mods) {
         this.modTableModel.setMods(mods);
+    }
+
+    @NotNull
+    public List<ManagedMod> mods() {
+        return List.copyOf(this.modTableModel.mods);
     }
 
     public void replaceMod(@NotNull ManagedMod previous, @NotNull ManagedMod updated) {
@@ -154,7 +183,7 @@ public final class InstanceModsTab extends JPanel {
     public void updateControlState(boolean available, boolean supportsMods) {
         this.modTable.setEnabled(available && supportsMods);
         this.modTableModel.editable = available && supportsMods;
-        this.installModButton.setEnabled(available && supportsMods);
+        this.downloadModsButton.setEnabled(available && supportsMods);
         this.openModsFolderButton.setEnabled(available && supportsMods);
         this.openConfigsFolderButton.setEnabled(available && supportsMods);
     }
@@ -194,7 +223,7 @@ public final class InstanceModsTab extends JPanel {
 
         @Override
         public int getColumnCount() {
-            return 5;
+            return 6;
         }
 
         @Override
@@ -205,7 +234,8 @@ public final class InstanceModsTab extends JPanel {
                 case 1 -> "table.mod.icon";
                 case 2 -> "table.mod.name";
                 case 3 -> "table.mod.version";
-                default -> "table.mod.last_modified";
+                case 4 -> "table.mod.last_modified";
+                default -> "table.mod.provider";
             });
         }
 
@@ -235,9 +265,12 @@ public final class InstanceModsTab extends JPanel {
                 case 1 -> this.icons.get(row);
                 case 2 -> mod.name();
                 case 3 -> mod.version().isBlank() ? "—" : mod.version();
-                default -> MODIFIED_TIME_FORMAT.format(
+                case 4 -> MODIFIED_TIME_FORMAT.format(
                         Instant.ofEpochMilli(mod.lastModifiedMillis()).atZone(ZoneId.systemDefault())
                 );
+                default -> mod.provider() == null
+                        ? Localization.text("mod.download.provider.unknown")
+                        : Localization.text("mod.download.provider." + mod.provider().name().toLowerCase());
             };
         }
 
@@ -250,7 +283,7 @@ public final class InstanceModsTab extends JPanel {
         }
     }
 
-    private final class SelectedModInfo extends JPanel {
+    private static final class SelectedModInfo extends JPanel {
         @NotNull
         private final JLabel iconLabel = new JLabel();
         @NotNull

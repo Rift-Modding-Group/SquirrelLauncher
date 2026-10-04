@@ -19,14 +19,18 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.HexFormat;
+import java.util.Map;
 
 public final class Downloader {
     private static final int MAX_ATTEMPTS = 3;
     private static final long RETRY_DELAY_MILLIS = 400L;
+    @NotNull
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(15);
+    @NotNull
     private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(3);
+    @NotNull
     private static final HttpClient CLIENT = HttpClient.newBuilder()
-            .connectTimeout(CONNECT_TIMEOUT)
+            .connectTimeout(Downloader.CONNECT_TIMEOUT)
             .followRedirects(HttpClient.Redirect.NORMAL)
             .build();
 
@@ -34,52 +38,34 @@ public final class Downloader {
 
     @NotNull
     public static String getString(@NotNull String url) throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url))
-                        .timeout(REQUEST_TIMEOUT)
-                        .header("User-Agent", SquirrelLauncher.NAME)
-                        .GET().build();
-
-        IOException lastFailure = null;
-        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        HttpRequest request = Downloader.createRequest(url, Map.of());
+        IOException failure = new IOException("Could not request " + url);
+        for (int attempt = 1; attempt <= Downloader.MAX_ATTEMPTS; attempt++) {
             try {
-                HttpResponse<String> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> response = Downloader.CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
                 if (response.statusCode() / 100 == 2) return response.body();
-
-                IOException failure = new IOException("HTTP " + response.statusCode() + " while requesting " + url);
-                lastFailure = failure;
-                if (!retryable(response.statusCode()) || attempt == MAX_ATTEMPTS) break;
+                failure = new IOException("HTTP " + response.statusCode() + " while requesting " + url);
+                if (Downloader.isTerminalStatus(response.statusCode())) break;
             }
             catch (IOException exception) {
-                if (attempt == MAX_ATTEMPTS) throw exception;
-                lastFailure = exception;
+                failure = exception;
             }
-
-            System.out.println("[RETRY " + attempt + "/" + MAX_ATTEMPTS + "] " + url);
-            Thread.sleep(RETRY_DELAY_MILLIS * attempt);
+            if (attempt < Downloader.MAX_ATTEMPTS) Downloader.waitBeforeRetry(url, attempt);
         }
-
-        throw lastFailure == null ? new IOException("Could not request " + url) : lastFailure;
+        throw failure;
     }
 
     /**
-     * Download a file without integrity verification.
-     *
-     * If the destination already exists, it is trusted.
+     * Downloads a file without integrity verification. An existing regular file is retained.
      */
     public static void download(@Nullable String url, @NotNull Path destination) throws IOException, InterruptedException {
         if (Files.isRegularFile(destination)) return;
+        if (url == null || url.isBlank()) throw new IOException("No download URL was supplied.");
 
-        Path parent = destination.toAbsolutePath().getParent();
-        if (parent != null) Files.createDirectories(parent);
-
-        Path temporary = destination.resolveSibling(destination.getFileName() + ".part");
-        Files.deleteIfExists(temporary);
-
-        if (url == null) throw new IOException("No URL has been supplied!");
-
+        Path temporary = Downloader.prepareTemporaryFile(destination);
         try {
-            downloadTo(url, temporary, destination.getFileName().toString());
-            replace(temporary, destination);
+            Downloader.downloadTo(url, temporary, destination.getFileName().toString(), Map.of());
+            Downloader.replace(temporary, destination);
         }
         finally {
             Files.deleteIfExists(temporary);
@@ -87,79 +73,66 @@ public final class Downloader {
     }
 
     /**
-     * Download or repair a file using its expected SHA-1.
-     *
-     * Existing valid files are kept.
-     * Missing files are downloaded.
-     * Corrupt files are replaced only after the replacement
-     * has successfully passed SHA-1 verification.
+     * Downloads or repairs a file and verifies it when an expected SHA-1 is available.
      */
-    public static void downloadVerified(@NotNull String url, @NotNull Path destination, @NotNull String expectedSha1) throws IOException, InterruptedException {
-        //---existing destination---
-        if (Files.isRegularFile(destination)) {
-            if (sha1Matches(destination, expectedSha1)) return;
+    public static void downloadVerified(
+            @NotNull String url, @NotNull Path destination, @Nullable String expectedSha1
+    ) throws IOException, InterruptedException {
+        Downloader.downloadVerified(url, destination, expectedSha1, Map.of());
+    }
 
-            System.out.println("Repairing corrupt file: " + destination.getFileName());
-        }
-        else System.out.println("Downloading missing file: " + destination.getFileName());
+    /**
+     * Downloads or repairs a file using additional HTTP request headers.
+     */
+    public static void downloadVerified(
+            @NotNull String url,
+            @NotNull Path destination,
+            @Nullable String expectedSha1,
+            @NotNull Map<String, String> requestHeaders
+    ) throws IOException, InterruptedException {
+        boolean existingFile = Files.isRegularFile(destination);
+        if (existingFile && Downloader.sha1Matches(destination, expectedSha1)) return;
 
-        //---destination directory---
-        Path parent = destination.toAbsolutePath().getParent();
-        if (parent != null) Files.createDirectories(parent);
-
-        //---temporary download---
-        Path temporary = destination.resolveSibling(destination.getFileName() + ".part");
-        Files.deleteIfExists(temporary);
-
+        System.out.println((existingFile
+                ? "Repairing corrupt file: "
+                : "Downloading missing file: ") + destination.getFileName());
+        Path temporary = Downloader.prepareTemporaryFile(destination);
         try {
-            downloadTo(url, temporary, destination.getFileName().toString());
-
-            //---verify replacement---
-            if (!sha1Matches(temporary, expectedSha1)) {
-                String actualSha1 = sha1(temporary);
-                throw new IOException("SHA-1 verification failed for " + destination
-                                + "\nExpected: " + expectedSha1
-                                + "\nActual:   " + actualSha1
-                );
+            Downloader.downloadTo(url, temporary, destination.getFileName().toString(), requestHeaders);
+            if (expectedSha1 != null && !expectedSha1.isBlank()) {
+                String actualSha1 = Downloader.sha1(temporary);
+                if (!actualSha1.equalsIgnoreCase(expectedSha1)) {
+                    throw new IOException(
+                            "SHA-1 verification failed for " + destination
+                                    + "\nExpected: " + expectedSha1
+                                    + "\nActual:   " + actualSha1
+                    );
+                }
             }
-
-            //---replacement passed verification, replace the existing destination---
-            replace(temporary, destination);
+            Downloader.replace(temporary, destination);
         }
         finally {
             Files.deleteIfExists(temporary);
         }
     }
 
-    /**
-     * Check whether a file matches the supplied SHA-1.
-     */
     public static boolean sha1Matches(@NotNull Path file, @Nullable String expectedSha1) throws IOException {
         if (!Files.isRegularFile(file)) return false;
-
-        //No hash is available, but file exists
-        if (expectedSha1 == null || expectedSha1.isBlank()) return true;
-
-        String actualSha1 = sha1(file);
-        return actualSha1.equalsIgnoreCase(expectedSha1);
+        return expectedSha1 == null || expectedSha1.isBlank() || Downloader.sha1(file).equalsIgnoreCase(expectedSha1);
     }
 
-    /**
-     * Calculate SHA-1 for a file.
-     */
     @NotNull
     public static String sha1(@NotNull Path file) throws IOException {
         MessageDigest digest;
         try {
             digest = MessageDigest.getInstance("SHA-1");
         }
-        catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-1 unavailable", e);
+        catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-1 unavailable", exception);
         }
 
         try (InputStream input = Files.newInputStream(file)) {
             byte[] buffer = new byte[8192];
-
             int count;
             while ((count = input.read(buffer)) != -1) {
                 if (Thread.currentThread().isInterrupted()) {
@@ -168,56 +141,74 @@ public final class Downloader {
                 digest.update(buffer, 0, count);
             }
         }
-
         return HexFormat.of().formatHex(digest.digest());
+    }
+
+    @NotNull
+    private static Path prepareTemporaryFile(@NotNull Path destination) throws IOException {
+        Path parent = destination.toAbsolutePath().getParent();
+        if (parent != null) Files.createDirectories(parent);
+        Path temporary = destination.resolveSibling(destination.getFileName() + ".part");
+        Files.deleteIfExists(temporary);
+        return temporary;
     }
 
     private static void downloadTo(
             @NotNull String url,
             @NotNull Path destination,
-            @NotNull String displayName
+            @NotNull String displayName,
+            @NotNull Map<String, String> requestHeaders
     ) throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url))
-                .timeout(REQUEST_TIMEOUT)
-                .header("User-Agent", SquirrelLauncher.NAME)
-                .GET().build();
-        IOException lastFailure = null;
-
-        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        HttpRequest request = Downloader.createRequest(url, requestHeaders);
+        IOException failure = new IOException("Could not download " + url);
+        for (int attempt = 1; attempt <= Downloader.MAX_ATTEMPTS; attempt++) {
             Files.deleteIfExists(destination);
             try {
-                HttpResponse<Path> response = CLIENT.send(request, HttpResponse.BodyHandlers.ofFile(destination));
+                HttpResponse<Path> response = Downloader.CLIENT.send(
+                        request, HttpResponse.BodyHandlers.ofFile(destination)
+                );
                 if (response.statusCode() / 100 == 2) return;
-
-                IOException failure = new IOException("HTTP " + response.statusCode() + " while downloading " + url);
-                lastFailure = failure;
-                if (!retryable(response.statusCode()) || attempt == MAX_ATTEMPTS) break;
+                failure = new IOException("HTTP " + response.statusCode() + " while downloading " + url);
+                if (Downloader.isTerminalStatus(response.statusCode())) break;
             }
             catch (IOException exception) {
-                if (attempt == MAX_ATTEMPTS) throw exception;
-                lastFailure = exception;
+                failure = exception;
             }
-
-            System.out.println("[RETRY " + attempt + "/" + MAX_ATTEMPTS + "] " + displayName);
-            Thread.sleep(RETRY_DELAY_MILLIS * attempt);
+            if (attempt < Downloader.MAX_ATTEMPTS) Downloader.waitBeforeRetry(displayName, attempt);
         }
-
-        throw lastFailure == null ? new IOException("Could not download " + url) : lastFailure;
+        throw failure;
     }
 
-    private static boolean retryable(int statusCode) {
-        return statusCode == 408 || statusCode == 425 || statusCode == 429 || statusCode / 100 == 5;
+    @NotNull
+    private static HttpRequest createRequest(@NotNull String url, @NotNull Map<String, String> requestHeaders) throws IOException {
+        try {
+            HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(url))
+                    .timeout(Downloader.REQUEST_TIMEOUT)
+                    .header("User-Agent", SquirrelLauncher.NAME);
+            for (Map.Entry<String, String> header : requestHeaders.entrySet()) {
+                request.header(header.getKey(), header.getValue());
+            }
+            return request.GET().build();
+        }
+        catch (IllegalArgumentException exception) {
+            throw new IOException("Invalid download URL or request header.", exception);
+        }
     }
 
-    /**
-     * Replace a file atomically when supported by the
-     * underlying filesystem.
-     */
+    private static void waitBeforeRetry(@NotNull String displayName, int attempt) throws InterruptedException {
+        System.out.println("[RETRY " + attempt + "/" + Downloader.MAX_ATTEMPTS + "] " + displayName);
+        Thread.sleep(Downloader.RETRY_DELAY_MILLIS * attempt);
+    }
+
+    private static boolean isTerminalStatus(int statusCode) {
+        return statusCode != 408 && statusCode != 425 && statusCode != 429 && statusCode / 100 != 5;
+    }
+
     private static void replace(@NotNull Path source, @NotNull Path destination) throws IOException {
         try {
             Files.move(source, destination, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         }
-        catch (AtomicMoveNotSupportedException e) {
+        catch (AtomicMoveNotSupportedException exception) {
             Files.move(source, destination, StandardCopyOption.REPLACE_EXISTING);
         }
     }
