@@ -294,6 +294,7 @@ public final class InstanceModsTab extends JPanel {
         private SelectedModInfo() {
             super(new BorderLayout(8, 0));
 
+            this.nameLabel.setText(" ");
             this.nameLabel.setFont(this.nameLabel.getFont().deriveFont(Font.BOLD));
 
             this.descriptionArea.setEditable(false);
@@ -308,25 +309,19 @@ public final class InstanceModsTab extends JPanel {
             textSide.add(this.nameLabel, BorderLayout.NORTH);
             textSide.add(this.descriptionArea, BorderLayout.CENTER);
             this.add(textSide, BorderLayout.CENTER);
-
-            this.setVisible(false);
         }
 
         private void update(@Nullable ManagedMod mod) {
             if (mod == null) {
                 this.iconLabel.setIcon(null);
-                this.nameLabel.setText("");
+                this.nameLabel.setText(" ");
                 this.descriptionArea.setText("");
-                this.setVisible(false);
             }
             else {
                 this.iconLabel.setIcon(mod.icon() == null ? null : new ImageIcon(mod.icon()));
                 this.nameLabel.setText(mod.name());
                 this.descriptionArea.setText(mod.description());
                 this.descriptionArea.setCaretPosition(0);
-                this.setVisible(true);
-                this.revalidate();
-                this.repaint();
             }
         }
     }
