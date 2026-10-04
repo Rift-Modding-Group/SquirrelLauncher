@@ -246,6 +246,7 @@ public final class LauncherSettingsTab extends AbstractSettingsTab {
             fieldConstraints.weightx = 1;
             fieldConstraints.fill = GridBagConstraints.HORIZONTAL;
             fieldConstraints.insets = new Insets(5, 0, 5, 8);
+            repositoryField.setColumns(1);
             this.githubRepositoriesPanel.add(repositoryField, fieldConstraints);
 
             JButton removeButton = new JButton("−");
