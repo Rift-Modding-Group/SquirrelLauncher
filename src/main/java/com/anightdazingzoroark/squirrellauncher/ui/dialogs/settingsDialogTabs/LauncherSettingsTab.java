@@ -11,6 +11,7 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -23,6 +24,8 @@ public final class LauncherSettingsTab extends AbstractSettingsTab {
     private final JPanel githubRepositoriesPanel = new JPanel(new GridBagLayout());
     @NotNull
     private final List<JTextField> githubRepositoryFields = new ArrayList<>();
+    @NotNull
+    private final JPasswordField githubPATField = new JPasswordField();
 
     public LauncherSettingsTab(@NotNull LauncherService launcherService) {
         super(new BorderLayout(), launcherService);
@@ -72,6 +75,9 @@ public final class LauncherSettingsTab extends AbstractSettingsTab {
             }
         });
 
+        this.githubPATField.setText(this.launcherService.settings().githubPAT());
+        this.githubPATField.setColumns(32);
+
         JPanel form = new JPanel(new GridBagLayout());
         GridBagConstraints title = new GridBagConstraints();
         title.gridx = 0;
@@ -81,6 +87,7 @@ public final class LauncherSettingsTab extends AbstractSettingsTab {
         title.insets = new Insets(0, 0, 16, 0);
         form.add(this.createHeader(), title);
 
+        //---launch behavior---
         JPanel launchBehaviorPanel = new JPanel(new GridBagLayout());
         launchBehaviorPanel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createTitledBorder(Localization.text("settings.launcher.launch_section")),
@@ -111,6 +118,7 @@ public final class LauncherSettingsTab extends AbstractSettingsTab {
         launchSection.insets = new Insets(0, 0, 12, 0);
         form.add(launchBehaviorPanel, launchSection);
 
+        //---language---
         JPanel languagePanel = new JPanel(new GridBagLayout());
         languagePanel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createTitledBorder(Localization.text("settings.launcher.language_section")),
@@ -148,6 +156,7 @@ public final class LauncherSettingsTab extends AbstractSettingsTab {
         languageSection.insets = new Insets(0, 0, 12, 0);
         form.add(languagePanel, languageSection);
 
+        //---github mod repositories---
         JPanel githubPanel = new JPanel(new GridBagLayout());
         githubPanel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createTitledBorder(Localization.text("settings.launcher.github.section")),
@@ -201,15 +210,57 @@ public final class LauncherSettingsTab extends AbstractSettingsTab {
 
         GridBagConstraints filler = new GridBagConstraints();
         filler.gridx = 0;
-        filler.gridy = 4;
+        filler.gridy = 5;
         filler.weighty = 1;
         filler.fill = GridBagConstraints.VERTICAL;
         form.add(new JPanel(), filler);
-        this.add(form, BorderLayout.CENTER);
 
+        //---github personal access token---
+        JPanel githubPATPanel = new JPanel(new GridBagLayout());
+        githubPATPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createTitledBorder(Localization.text("settings.launcher.github_pat")),
+                BorderFactory.createEmptyBorder(4, 10, 8, 10)
+        ));
+
+        GridBagConstraints githubPATLabel = new GridBagConstraints();
+        githubPATLabel.gridx = 0;
+        githubPATLabel.gridy = 0;
+        githubPATLabel.gridwidth = 2;
+        githubPATLabel.weightx = 1;
+        githubPATLabel.anchor = GridBagConstraints.LINE_START;
+        githubPATLabel.insets = new Insets(5, 0, 5, 0);
+        githubPATPanel.add(new JLabel(Localization.text("settings.launcher.github_pat.instructions")), githubPATLabel);
+
+        GridBagConstraints githubPAT = new GridBagConstraints();
+        githubPAT.gridx = 0;
+        githubPAT.gridy = 1;
+        githubPAT.weightx = 1;
+        githubPAT.anchor = GridBagConstraints.LINE_START;
+        githubPAT.insets = new Insets(5, 0, 5, 0);
+        githubPATPanel.add(this.githubPATField, githubPAT);
+
+        GridBagConstraints saveGithubPAT = new GridBagConstraints();
+        saveGithubPAT.gridx = 1;
+        saveGithubPAT.gridy = 1;
+        saveGithubPAT.anchor = GridBagConstraints.LINE_END;
+        saveGithubPAT.insets = new Insets(5, 8, 5, 0);
+        JButton saveGithubPATButton = new JButton(Localization.text("settings.launcher.github_pat.save"));
+        githubPATPanel.add(saveGithubPATButton, saveGithubPAT);
+
+        GridBagConstraints githubPATSection = new GridBagConstraints();
+        githubPATSection.gridx = 0;
+        githubPATSection.gridy = 4;
+        githubPATSection.weightx = 1;
+        githubPATSection.fill = GridBagConstraints.HORIZONTAL;
+        githubPATSection.insets = new Insets(12, 0, 0, 0);
+        form.add(githubPATPanel, githubPATSection);
+
+        this.add(form, BorderLayout.CENTER);
         this.launchBehaviorSelector.addActionListener(event -> this.saveSettings());
         this.languageSelector.addActionListener(event -> this.saveSettings());
         saveGithubRepositoriesButton.addActionListener(event -> this.saveSettings());
+        saveGithubPATButton.addActionListener(event -> this.saveSettings());
+        this.githubPATField.addActionListener(event -> this.saveSettings());
     }
 
     @Override
@@ -301,6 +352,14 @@ public final class LauncherSettingsTab extends AbstractSettingsTab {
                 .map(String::trim)
                 .filter(repository -> !repository.isBlank())
                 .toList();
+        char[] githubPATCharacters = this.githubPATField.getPassword();
+        String githubPAT;
+        try {
+            githubPAT = new String(githubPATCharacters).trim();
+        }
+        finally {
+            Arrays.fill(githubPATCharacters, '\0');
+        }
 
         GameSettings savedSettings = this.launcherService.settings();
         try {
@@ -315,20 +374,24 @@ public final class LauncherSettingsTab extends AbstractSettingsTab {
                     selectedLaunchBehavior,
                     savedSettings.showLinuxJavaPackageManagerReminder(),
                     savedSettings.javaRuntimePaths(),
-                    githubRepositories
+                    githubRepositories,
+                    githubPAT
             );
             if (settings.equals(savedSettings)) {
                 this.showGitHubRepositories(settings.githubModRepositories());
+                this.githubPATField.setText(settings.githubPAT());
                 return;
             }
             this.launcherService.updateSettings(settings);
             this.showGitHubRepositories(settings.githubModRepositories());
+            this.githubPATField.setText(settings.githubPAT());
         }
         catch (Exception exception) {
             this.showSaveError(exception);
             this.showGitHubRepositories(savedSettings.githubModRepositories());
             this.launchBehaviorSelector.setSelectedItem(savedSettings.launchBehavior());
             this.languageSelector.setSelectedItem(savedSettings.language());
+            this.githubPATField.setText(savedSettings.githubPAT());
         }
     }
 }

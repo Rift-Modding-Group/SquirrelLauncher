@@ -14,6 +14,7 @@ A Minecraft 1.12.2 launcher and only 1.12.2. Checklist:
 * [ ] Built-in [Crash Assistant](https://www.curseforge.com/minecraft/mc-mods/crash-assistant)
 * [ ] Built-in [MCreator Detector](https://github.com/darklysteamgear/mcreatorDetector)
 * [X] Mod downloading from Curseforge, Modrinth, and GitHub
+* [X] Field for GitHub personal access token to prevent rate limits
 * [ ] Curseforge and Modrinth modpack import as instances
 * [ ] Custom themes
 * [ ] World management
@@ -24,3 +25,4 @@ A Minecraft 1.12.2 launcher and only 1.12.2. Checklist:
 * [ ] Built-in [Celeritas](https://github.com/kappa-maintainer/Celeritas-auto-build/releases) and [Optifine](https://optifine.net/) downloader
 * [ ] Built-in [FileDirector](https://www.curseforge.com/minecraft/mc-mods/filedirector)
 * [ ] Built-in Groovyscript/Crafttweaker IDE(?)
+* [ ] Built-in mod builder directly from GitHub repos?

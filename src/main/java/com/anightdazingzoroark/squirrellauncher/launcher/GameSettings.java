@@ -21,7 +21,8 @@ public record GameSettings(
         @NotNull LaunchBehavior launchBehavior,
         boolean showLinuxJavaPackageManagerReminder,
         @NotNull List<Path> javaRuntimePaths,
-        @NotNull List<String> githubModRepositories
+        @NotNull List<String> githubModRepositories,
+        @NotNull String githubPAT
 ) {
     public static final int MINIMUM_ALLOCATED_MEMORY_GIGABYTES = 1;
     public static final int MAXIMUM_ALLOCATED_MEMORY_GIGABYTES;
@@ -58,6 +59,7 @@ public record GameSettings(
                 .map(GitHubModRepository::releasesUrl)
                 .distinct()
                 .toList();
+        githubPAT = githubPAT.trim();
         if (windowWidth < 320 || windowWidth > 7680) {
             throw new IllegalArgumentException("Game window width must be between 320 and 7680 pixels.");
         }
@@ -92,7 +94,8 @@ public record GameSettings(
                 LaunchBehavior.DO_NOTHING,
                 true,
                 List.of(),
-                List.of("https://github.com/kappa-maintainer/Celeritas-auto-build/releases")
+                List.of("https://github.com/kappa-maintainer/Celeritas-auto-build/releases"),
+                ""
         );
     }
 }

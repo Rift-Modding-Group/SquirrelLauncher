@@ -1,6 +1,7 @@
 package com.anightdazingzoroark.squirrellauncher.launcher;
 
 import com.anightdazingzoroark.squirrellauncher.minecraft.MinecraftPaths;
+import com.anightdazingzoroark.squirrellauncher.minecraft.GitHubUtils;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.AccountManager;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MicrosoftAuthenticator;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MinecraftAccount;
@@ -56,6 +57,7 @@ public final class LauncherService implements AutoCloseable {
 
     public LauncherService(@NotNull Consumer<String> outputListener) {
         this.outputBridge = new LauncherOutputBridge(outputListener);
+        GitHubUtils.setPersonalAccessToken(this.settingsManager.settings().githubPAT());
     }
 
     //---account stuff---
@@ -95,6 +97,7 @@ public final class LauncherService implements AutoCloseable {
 
     public void updateSettings(@NotNull GameSettings settings) throws Exception {
         this.settingsManager.update(settings);
+        GitHubUtils.setPersonalAccessToken(settings.githubPAT());
     }
 
     public void dismissLinuxJavaPackageManagerReminder() throws Exception {
@@ -111,7 +114,8 @@ public final class LauncherService implements AutoCloseable {
                 savedSettings.launchBehavior(),
                 false,
                 savedSettings.javaRuntimePaths(),
-                savedSettings.githubModRepositories()
+                savedSettings.githubModRepositories(),
+                savedSettings.githubPAT()
         ));
     }
 
@@ -132,7 +136,8 @@ public final class LauncherService implements AutoCloseable {
                 savedSettings.launchBehavior(),
                 savedSettings.showLinuxJavaPackageManagerReminder(),
                 javaRuntimePaths,
-                savedSettings.githubModRepositories()
+                savedSettings.githubModRepositories(),
+                savedSettings.githubPAT()
         ));
     }
 

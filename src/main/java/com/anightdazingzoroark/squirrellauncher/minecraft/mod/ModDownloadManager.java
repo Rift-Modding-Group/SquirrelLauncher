@@ -1,6 +1,7 @@
 package com.anightdazingzoroark.squirrellauncher.minecraft.mod;
 
 import com.anightdazingzoroark.squirrellauncher.SquirrelLauncher;
+import com.anightdazingzoroark.squirrellauncher.minecraft.GitHubUtils;
 import com.anightdazingzoroark.squirrellauncher.minecraft.download.Downloader;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
 import com.anightdazingzoroark.squirrellauncher.minecraft.MinecraftPaths;
@@ -324,15 +325,15 @@ public final class ModDownloadManager {
             GitHubModRepository repository = GitHubModRepository.parse(
                     "https://github.com/" + project.projectId()
             );
-            HttpRequest request = HttpRequest.newBuilder(URI.create(repository.apiUrl() + "/readme"))
+            URI uri = URI.create(repository.apiUrl() + "/readme");
+            HttpRequest.Builder request = HttpRequest.newBuilder(uri)
                     .timeout(ModDownloadManager.REQUEST_TIMEOUT)
                     .header("Accept", "application/vnd.github.raw+json")
                     .header("X-GitHub-Api-Version", "2022-11-28")
-                    .header("User-Agent", ModDownloadManager.USER_AGENT)
-                    .GET()
-                    .build();
+                    .header("User-Agent", ModDownloadManager.USER_AGENT);
+            GitHubUtils.authenticate(request, uri);
             HttpResponse<String> response = this.httpClient.send(
-                    request,
+                    request.GET().build(),
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
             );
             if (response.statusCode() == 404) {
@@ -926,7 +927,8 @@ public final class ModDownloadManager {
 
     @NotNull
     private JsonElement requestJson(@NotNull String url, @NotNull ModDownloadPlatform platform) throws IOException, InterruptedException {
-        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(url))
+        URI uri = URI.create(url);
+        HttpRequest.Builder request = HttpRequest.newBuilder(uri)
                 .timeout(ModDownloadManager.REQUEST_TIMEOUT)
                 .header("Accept", "application/json")
                 .header("User-Agent", ModDownloadManager.USER_AGENT);
@@ -936,6 +938,7 @@ public final class ModDownloadManager {
         else if (platform == ModDownloadPlatform.GITHUB) {
             request.setHeader("Accept", "application/vnd.github+json");
             request.header("X-GitHub-Api-Version", "2022-11-28");
+            GitHubUtils.authenticate(request, uri);
         }
         HttpResponse<String> response = this.httpClient.send(
                 request.GET().build(),

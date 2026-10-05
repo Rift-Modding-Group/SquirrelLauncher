@@ -319,6 +319,9 @@ settings.launcher.github.repository=Repository:
 settings.launcher.github.add=Add repository
 settings.launcher.github.remove=Remove repository
 settings.launcher.github.save=Save repositories
+settings.launcher.github_pat=GitHub Personal Access Token
+settings.launcher.github_pat.instructions=To prevent rate limiting from GitHub, put your Personal Access Token here.
+settings.launcher.github_pat.save=Save token
 settings.error.save=Could not save settings
 
 # Java

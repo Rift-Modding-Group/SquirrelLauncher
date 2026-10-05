@@ -99,7 +99,10 @@ public final class GameSettingsManager {
                     !root.has("showLinuxJavaPackageManagerReminder")
                             || root.get("showLinuxJavaPackageManagerReminder").getAsBoolean(),
                     javaRuntimePaths,
-                    githubModRepositories
+                    githubModRepositories,
+                    root.has("githubPAT") && root.get("githubPAT").isJsonPrimitive()
+                            ? root.get("githubPAT").getAsString()
+                            : ""
             );
         }
         catch (Exception exception) {
@@ -140,6 +143,7 @@ public final class GameSettingsManager {
         JsonArray githubModRepositories = new JsonArray();
         for (String repository : settings.githubModRepositories()) githubModRepositories.add(repository);
         root.add("githubModRepositories", githubModRepositories);
+        root.addProperty("githubPAT", settings.githubPAT());
 
         Path settingsFile = MinecraftPaths.SETTINGS;
         Files.createDirectories(settingsFile.getParent());
