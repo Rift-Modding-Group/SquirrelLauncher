@@ -2,6 +2,7 @@ package com.anightdazingzoroark.squirrellauncher.minecraft.mod;
 
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceType;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
+import com.anightdazingzoroark.squirrellauncher.minecraft.mod.platform.ModDownloadPlatform;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;

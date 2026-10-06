@@ -1,5 +1,6 @@
 package com.anightdazingzoroark.squirrellauncher.minecraft.mod;
 
+import com.anightdazingzoroark.squirrellauncher.minecraft.mod.platform.ModDownloadPlatform;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

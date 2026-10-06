@@ -1,7 +1,7 @@
 package com.anightdazingzoroark.squirrellauncher.minecraft.download;
 
 import com.anightdazingzoroark.squirrellauncher.SquirrelLauncher;
-import com.anightdazingzoroark.squirrellauncher.minecraft.GitHubUtils;
+import com.anightdazingzoroark.squirrellauncher.minecraft.GitHubAuthentication;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -190,7 +190,7 @@ public final class Downloader {
             HttpRequest.Builder request = HttpRequest.newBuilder(uri)
                     .timeout(Downloader.REQUEST_TIMEOUT)
                     .header("User-Agent", SquirrelLauncher.NAME);
-            GitHubUtils.authenticate(request, uri);
+            GitHubAuthentication.authenticate(request, uri);
             for (Map.Entry<String, String> header : requestHeaders.entrySet()) {
                 request.header(header.getKey(), header.getValue());
             }

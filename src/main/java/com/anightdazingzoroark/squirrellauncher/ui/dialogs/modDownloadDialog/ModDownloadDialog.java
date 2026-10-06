@@ -4,7 +4,7 @@ import com.anightdazingzoroark.squirrellauncher.launcher.LauncherService;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ManagedMod;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadFile;
-import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadPlatform;
+import com.anightdazingzoroark.squirrellauncher.minecraft.mod.platform.ModDownloadPlatform;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadProject;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadProjectDescription;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadSearchPage;

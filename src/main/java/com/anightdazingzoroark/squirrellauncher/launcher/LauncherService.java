@@ -1,7 +1,7 @@
 package com.anightdazingzoroark.squirrellauncher.launcher;
 
 import com.anightdazingzoroark.squirrellauncher.minecraft.MinecraftPaths;
-import com.anightdazingzoroark.squirrellauncher.minecraft.GitHubUtils;
+import com.anightdazingzoroark.squirrellauncher.minecraft.GitHubAuthentication;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.AccountManager;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MicrosoftAuthenticator;
 import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MinecraftAccount;
@@ -13,7 +13,7 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceType;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ManagedMod;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadFile;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadManager;
-import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadPlatform;
+import com.anightdazingzoroark.squirrellauncher.minecraft.mod.platform.ModDownloadPlatform;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadProject;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadProjectDescription;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadSearchPage;
@@ -57,7 +57,7 @@ public final class LauncherService implements AutoCloseable {
 
     public LauncherService(@NotNull Consumer<String> outputListener) {
         this.outputBridge = new LauncherOutputBridge(outputListener);
-        GitHubUtils.setPersonalAccessToken(this.settingsManager.settings().githubPAT());
+        GitHubAuthentication.setPersonalAccessToken(this.settingsManager.settings().githubPAT());
     }
 
     //---account stuff---
@@ -97,7 +97,7 @@ public final class LauncherService implements AutoCloseable {
 
     public void updateSettings(@NotNull GameSettings settings) throws Exception {
         this.settingsManager.update(settings);
-        GitHubUtils.setPersonalAccessToken(settings.githubPAT());
+        GitHubAuthentication.setPersonalAccessToken(settings.githubPAT());
     }
 
     public void dismissLinuxJavaPackageManagerReminder() throws Exception {
@@ -516,8 +516,8 @@ public final class LauncherService implements AutoCloseable {
         return this.modDownloadManager.toggleFavorite(project);
     }
 
-    @Nullable
-    public ModDownloadFile modUpdate(@NotNull ManagedMod mod) throws Exception {
+    @NotNull
+    public List<ModDownloadFile> findModUpdate(@NotNull ManagedMod mod) throws Exception {
         return this.modDownloadManager.updateFor(mod);
     }
 

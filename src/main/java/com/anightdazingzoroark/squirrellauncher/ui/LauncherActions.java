@@ -14,6 +14,7 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaVersion;
 import com.anightdazingzoroark.squirrellauncher.ui.dialogs.AddInstanceDialog;
 import com.anightdazingzoroark.squirrellauncher.ui.dialogs.ChangeLoaderVersionDialog;
 import com.anightdazingzoroark.squirrellauncher.ui.dialogs.ConvertInstanceDialog;
+import com.anightdazingzoroark.squirrellauncher.ui.dialogs.ModUpdateDialog;
 import com.anightdazingzoroark.squirrellauncher.ui.dialogs.modDownloadDialog.ModDownloadDialog;
 import com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels.InstanceDetailsPanel;
 import com.anightdazingzoroark.squirrellauncher.ui.launcherFramePanels.InstanceSidebarPanel;
@@ -526,25 +527,35 @@ public final class LauncherActions {
         this.launcherFrame.runTask(
                 instance.id(),
                 Localization.text("instance.mods.status.checking_update", mod.name()),
-                () -> this.launcherService.modUpdate(mod),
+                () -> this.launcherService.findModUpdate(mod),
                 update -> {
                     this.launcherFrame.setStatus(Localization.text("main.status.ready"));
-                    String message;
-                    if (update == null) message = Localization.text("instance.mods.update.none", mod.name());
+                    //no updates found, all gud
+                    if (update.isEmpty()) {
+                        JOptionPane.showMessageDialog(
+                                this.launcherFrame, Localization.text("instance.mods.update.none", mod.name()),
+                                Localization.text("instance.mods.dialog.update"),
+                                JOptionPane.INFORMATION_MESSAGE
+                        );
+                    }
+                    //updates found, show downloadable files
                     else {
+                        new ModUpdateDialog(this.launcherFrame, mod, update);
+                        /*
                         String version = update.versionName().isBlank() ? update.fileName() : update.versionName();
-                        message = Localization.text(
+                        String message = Localization.text(
                                 "instance.mods.update.available",
                                 mod.name(),
                                 version,
                                 update.fileName()
                         );
+                        JOptionPane.showMessageDialog(
+                                this.launcherFrame, message,
+                                Localization.text("instance.mods.dialog.update"),
+                                JOptionPane.INFORMATION_MESSAGE
+                        );
+                         */
                     }
-                    JOptionPane.showMessageDialog(
-                            this.launcherFrame, message,
-                            Localization.text("instance.mods.dialog.update"),
-                            JOptionPane.INFORMATION_MESSAGE
-                    );
                 }
         );
     }

@@ -8,20 +8,20 @@ import java.net.http.HttpRequest;
 /**
  * mostly for allowing authentication w a personal access token
  */
-public final class GitHubUtils {
+public final class GitHubAuthentication {
     @NotNull
     private static volatile String personalAccessToken = "";
 
-    private GitHubUtils() {}
+    private GitHubAuthentication() {}
 
     public static void setPersonalAccessToken(@NotNull String personalAccessToken) {
-        GitHubUtils.personalAccessToken = personalAccessToken.trim();
+        GitHubAuthentication.personalAccessToken = personalAccessToken.trim();
     }
 
     public static void authenticate(@NotNull HttpRequest.Builder request, @NotNull URI uri) {
         String host = uri.getHost();
         if (host == null || !host.equalsIgnoreCase("api.github.com")) return;
-        String personalAccessToken = GitHubUtils.personalAccessToken;
+        String personalAccessToken = GitHubAuthentication.personalAccessToken;
         if (!personalAccessToken.isEmpty()) {
             request.header("Authorization", "Bearer " + personalAccessToken);
         }
