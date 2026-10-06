@@ -74,18 +74,6 @@ public final class ModDownloadReviewDialog extends JDialog {
 
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         actions.setBorder(BorderFactory.createEmptyBorder(0, 12, 12, 12));
-        if (!this.dependencySelections.isEmpty()) {
-            JButton toggleDependenciesButton = new JButton(Localization.text(
-                    "mod.download.review.toggle_dependencies"
-            ));
-            toggleDependenciesButton.addActionListener(event -> {
-                boolean selectDependencies = this.dependencySelections.stream().anyMatch(selection -> !selection.isSelected());
-                for (JCheckBox dependencySelection : this.dependencySelections) {
-                    dependencySelection.setSelected(selectDependencies);
-                }
-            });
-            actions.add(toggleDependenciesButton);
-        }
         JButton cancelButton = new JButton(Localization.text("mod.download.button.close"));
         cancelButton.addActionListener(event -> this.dispose());
         actions.add(cancelButton);
@@ -114,9 +102,7 @@ public final class ModDownloadReviewDialog extends JDialog {
     private void addFiles(@NotNull JPanel filePanel, @NotNull List<ModDownloadFile> files, boolean dependency) {
         for (ModDownloadFile file : files) {
             String version = file.versionName().isBlank() ? file.fileName() : file.versionName();
-            String provider = Localization.text(
-                    "mod.download.provider." + file.platform().name().toLowerCase()
-            );
+            String provider = Localization.text("mod.download.provider." + file.platform().name().toLowerCase());
             String label = dependency
                     ? Localization.text("mod.download.review.dependency", file.projectName(), version, provider)
                     : Localization.text("mod.download.review.selected", file.projectName(), version, provider);

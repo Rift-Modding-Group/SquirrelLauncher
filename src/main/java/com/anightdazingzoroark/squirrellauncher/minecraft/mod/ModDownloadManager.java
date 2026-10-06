@@ -578,16 +578,12 @@ public final class ModDownloadManager {
         if (mod.provider() == null || mod.providerProjectId() == null || mod.providerFileId() == null) return null;
         ModDownloadProject project = this.project(mod.provider(), mod.providerProjectId());
         List<ModDownloadFile> compatibleFiles = this.files(project);
-        if (compatibleFiles.isEmpty()
-                || compatibleFiles.getFirst().providerFileId().equals(mod.providerFileId())) return null;
+        if (compatibleFiles.isEmpty() || compatibleFiles.getFirst().providerFileId().equals(mod.providerFileId())) return null;
         return compatibleFiles.getFirst();
     }
 
     @NotNull
-    public List<ModDownloadFile> dependencies(
-            @NotNull MinecraftInstance instance,
-            @NotNull List<ModDownloadFile> rootFiles
-    ) throws IOException, InterruptedException {
+    public List<ModDownloadFile> dependencies(@NotNull MinecraftInstance instance, @NotNull List<ModDownloadFile> rootFiles) throws IOException, InterruptedException {
         ModManager modManager = new ModManager(instance);
         modManager.initialize();
         List<ModDownloadFile> pending = new ArrayList<>();

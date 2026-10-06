@@ -24,5 +24,6 @@ A Minecraft 1.12.2 launcher and only 1.12.2. Checklist:
 * [ ] Recommended mod downloads (from [MC Optimization Guide](https://github.com/Polytetrafluoroethylene-PTFE/MC-Optimization-Guide/blob/main/mods-n-stuff/1.12.2.md) for Forge and [Cleanroom Modpack Guide](https://cleanroommc.com/wiki/end-user-guide/preparing-your-modpack) for Cleanroom)
 * [ ] Built-in [Celeritas](https://github.com/kappa-maintainer/Celeritas-auto-build/releases) and [Optifine](https://optifine.net/) downloader
 * [ ] Built-in [FileDirector](https://www.curseforge.com/minecraft/mc-mods/filedirector)
+* [ ] Built-in reader for [Second Cup](https://second-cup.ender-development.org/)
 * [ ] Built-in Groovyscript/Crafttweaker IDE(?)
 * [ ] Built-in mod builder directly from GitHub repos?

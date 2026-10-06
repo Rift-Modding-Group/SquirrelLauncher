@@ -41,6 +41,8 @@ public final class InstanceModsTab extends JPanel {
     @NotNull
     private final JPopupMenu modActionsMenu = new JPopupMenu();
     @NotNull
+    private final JMenuItem activateModItem = new JMenuItem(Localization.text("instance.mods.menu.activate_mod"));
+    @NotNull
     private final JMenuItem viewModPageItem = new JMenuItem(Localization.text("instance.mods.menu.view_page"));
     @NotNull
     private final JMenuItem checkModUpdatesItem = new JMenuItem(Localization.text("instance.mods.menu.check_updates"));
@@ -93,10 +95,7 @@ public final class InstanceModsTab extends JPanel {
                         mod != null && mod.providerPageUrl() != null && !mod.providerPageUrl().isBlank()
                 );
                 InstanceModsTab.this.checkModUpdatesItem.setEnabled(
-                        mod != null
-                                && mod.provider() != null
-                                && mod.providerProjectId() != null
-                                && mod.providerFileId() != null
+                        mod != null && mod.provider() != null && mod.providerProjectId() != null && mod.providerFileId() != null
                 );
                 InstanceModsTab.this.modActionsMenu.show(InstanceModsTab.this.modTable, e.getX(), e.getY());
             }
@@ -134,11 +133,15 @@ public final class InstanceModsTab extends JPanel {
     }
 
     private void configureMenu() {
+        this.activateModItem.addActionListener(event -> this.launcherActions.setModEnabledRequested());
         this.viewModPageItem.addActionListener(event -> this.launcherActions.openModPageRequested());
         this.checkModUpdatesItem.addActionListener(event -> this.launcherActions.checkModUpdateRequested());
+
         JMenuItem deleteModItem = new JMenuItem(Localization.text("instance.mods.menu.remove"));
         deleteModItem.addActionListener(event -> this.launcherActions.removeModRequested());
 
+        this.modActionsMenu.add(this.activateModItem);
+        this.modActionsMenu.addSeparator();
         this.modActionsMenu.add(this.viewModPageItem);
         this.modActionsMenu.add(this.checkModUpdatesItem);
         this.modActionsMenu.addSeparator();

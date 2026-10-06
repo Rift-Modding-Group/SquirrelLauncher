@@ -7,6 +7,7 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MinecraftAccount;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceLaunchSettings;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ManagedMod;
+import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModState;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntime;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntimeManager;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaVersion;
@@ -441,6 +442,7 @@ public final class LauncherActions {
         ).showModal();
     }
 
+    //used for the checkbox in InstanceModsTab.ModTableModel
     public void setModEnabledRequested(@NotNull ManagedMod mod, boolean enable) {
         MinecraftInstance instance = this.selectedInstance();
         if (instance == null) return;
@@ -483,6 +485,13 @@ public final class LauncherActions {
         }.execute();
     }
 
+    //used for the activate/deactivate dropdown option in InstanceModsTab.modActionsMenu
+    public void setModEnabledRequested() {
+        ManagedMod mod = this.detailsPanel().modsTab().selectedMod();
+        if (mod == null) return;
+        this.setModEnabledRequested(mod, mod.state() != ModState.ENABLED);
+    }
+
     public void openModPageRequested() {
         MinecraftInstance instance = this.selectedInstance();
         ManagedMod mod = this.detailsPanel().modsTab().selectedMod();
@@ -521,9 +530,7 @@ public final class LauncherActions {
                 update -> {
                     this.launcherFrame.setStatus(Localization.text("main.status.ready"));
                     String message;
-                    if (update == null) {
-                        message = Localization.text("instance.mods.update.none", mod.name());
-                    }
+                    if (update == null) message = Localization.text("instance.mods.update.none", mod.name());
                     else {
                         String version = update.versionName().isBlank() ? update.fileName() : update.versionName();
                         message = Localization.text(
@@ -534,8 +541,7 @@ public final class LauncherActions {
                         );
                     }
                     JOptionPane.showMessageDialog(
-                            this.launcherFrame,
-                            message,
+                            this.launcherFrame, message,
                             Localization.text("instance.mods.dialog.update"),
                             JOptionPane.INFORMATION_MESSAGE
                     );
