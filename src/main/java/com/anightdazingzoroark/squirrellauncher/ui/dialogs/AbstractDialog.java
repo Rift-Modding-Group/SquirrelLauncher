@@ -66,10 +66,7 @@ public abstract class AbstractDialog<T> extends JDialog {
             @NotNull Component component,
             int componentHeight
     ) {
-        int labelTopInset = 5 + Math.max(
-                0,
-                (componentHeight - label.getPreferredSize().height) / 2
-        );
+        int labelTopInset = 5 + Math.max(0, (componentHeight - label.getPreferredSize().height) / 2);
         this.addRow(panel, row, label, component, GridBagConstraints.FIRST_LINE_START, labelTopInset);
     }
 

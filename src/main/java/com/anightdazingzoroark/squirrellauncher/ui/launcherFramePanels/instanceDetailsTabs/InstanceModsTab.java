@@ -11,6 +11,8 @@ import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableColumn;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.time.Instant;
@@ -86,6 +88,23 @@ public final class InstanceModsTab extends JPanel {
             this.selectedModInfo.update(selectedMods.size() == 1 ? selectedMods.getFirst() : null);
             this.launcherActions.modSelectionChanged();
         });
+        String clearSelectionAction = "clearModSelection";
+        KeyStroke escapeKeyStroke = KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0);
+        Action clearSelection = new AbstractAction() {
+            @Override
+            public boolean isEnabled() {
+                return InstanceModsTab.this.modTable.getSelectedRowCount() > 0;
+            }
+
+            @Override
+            public void actionPerformed(@NotNull ActionEvent event) {
+                InstanceModsTab.this.modTable.clearSelection();
+            }
+        };
+        this.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).put(escapeKeyStroke, clearSelectionAction);
+        this.getActionMap().put(clearSelectionAction, clearSelection);
+        this.modTable.getInputMap(JComponent.WHEN_FOCUSED).put(escapeKeyStroke, clearSelectionAction);
+        this.modTable.getActionMap().put(clearSelectionAction, clearSelection);
         this.modTable.addMouseListener(new MouseAdapter() {
             private void showPopup(MouseEvent e) {
                 if (!e.isPopupTrigger()) return;
@@ -137,16 +156,18 @@ public final class InstanceModsTab extends JPanel {
         this.add(new JScrollPane(this.modTable), BorderLayout.CENTER);
 
         JPanel actions = new JPanel(new BorderLayout());
-        actions.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 8));
-        JPanel leftActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        actions.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
+        JPanel leftActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         leftActions.add(this.downloadModsButton);
         actions.add(leftActions, BorderLayout.WEST);
-        JPanel rightActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        Box rightActions = Box.createHorizontalBox();
         rightActions.add(this.openModsFolderButton);
+        rightActions.add(Box.createHorizontalStrut(6));
         rightActions.add(this.openConfigsFolderButton);
         actions.add(rightActions, BorderLayout.EAST);
 
         JPanel bottomContent = new JPanel(new BorderLayout(0, 8));
+        bottomContent.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 8));
         bottomContent.add(this.selectedModInfo, BorderLayout.CENTER);
         bottomContent.add(actions, BorderLayout.SOUTH);
         this.add(bottomContent, BorderLayout.SOUTH);
