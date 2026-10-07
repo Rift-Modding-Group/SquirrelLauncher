@@ -38,6 +38,7 @@ import java.awt.Point;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.List;
 
 public final class InstanceDetailsPanel extends JPanel {
     @NotNull
@@ -131,6 +132,7 @@ public final class InstanceDetailsPanel extends JPanel {
         return this.instanceSettingsTab;
     }
 
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean confirmDiscardUnsavedChanges() {
         return this.instanceSettingsTab.confirmDiscardUnsavedChanges();
     }
@@ -140,7 +142,7 @@ public final class InstanceDetailsPanel extends JPanel {
                 noInstances ? "main.instances.empty" : "main.instances.no_matches"
         ));
         this.activityTab.clearDisplayedInstance();
-        this.modsTab.setMods(java.util.List.of());
+        this.modsTab.setMods(List.of());
         this.instanceSettingsTab.clearDisplayedInstance();
         this.notesTab.clearDisplayedInstance();
         this.selectedInstanceHasMods = false;

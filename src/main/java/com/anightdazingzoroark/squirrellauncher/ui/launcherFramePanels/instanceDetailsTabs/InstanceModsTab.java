@@ -50,11 +50,16 @@ public final class InstanceModsTab extends JPanel {
     private final JMenuItem checkModUpdatesItem = new JMenuItem(Localization.text("instance.mods.menu.check_updates"));
     @NotNull
     private final JMenuItem deleteModItem = new JMenuItem(Localization.text("instance.mods.menu.remove"));
+    @NotNull
+    private final Dimension bottomContentSize;
+    private final int bottomContentNoInfoHeight;
+    private final int bottomContentWithInfoHeight;
+    private boolean resizeInfoHeightFlag;
 
     public InstanceModsTab(@NotNull LauncherActions launcherActions) {
         super(new BorderLayout(0, 8));
         this.launcherActions = launcherActions;
-        this.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
+        this.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
         this.configureMenu();
 
         this.modTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
@@ -84,9 +89,20 @@ public final class InstanceModsTab extends JPanel {
         this.modTable.getSelectionModel().addListSelectionListener(event -> {
             if (event.getValueIsAdjusting()) return;
 
+            //get singular selected mod
             List<ManagedMod> selectedMods = this.selectedMods();
-            this.selectedModInfo.update(selectedMods.size() == 1 ? selectedMods.getFirst() : null);
-            this.launcherActions.modSelectionChanged();
+            ManagedMod selectedMod = selectedMods.size() == 1 ? selectedMods.getFirst() : null;
+            this.selectedModInfo.update(selectedMod);
+
+            //now resize bottom zone
+            if (selectedMod != null && !this.resizeInfoHeightFlag) {
+                InstanceModsTab.this.bottomContentSize.height = InstanceModsTab.this.bottomContentWithInfoHeight;
+                this.resizeInfoHeightFlag = true;
+            }
+            else if (selectedMod == null) {
+                InstanceModsTab.this.bottomContentSize.height = InstanceModsTab.this.bottomContentNoInfoHeight;
+                this.resizeInfoHeightFlag = false;
+            }
         });
         String clearSelectionAction = "clearModSelection";
         KeyStroke escapeKeyStroke = KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0);
@@ -122,9 +138,7 @@ public final class InstanceModsTab extends JPanel {
                         && mod.providerPageUrl() != null
                         && !mod.providerPageUrl().isBlank());
                 InstanceModsTab.this.checkModUpdatesItem.setEnabled(selectedMods.stream().anyMatch(selectedMod ->
-                        selectedMod.provider() != null
-                                && selectedMod.providerProjectId() != null
-                                && selectedMod.providerFileId() != null
+                        selectedMod.provider() != null && selectedMod.providerProjectId() != null && selectedMod.providerFileId() != null
                 ));
                 InstanceModsTab.this.modActionsMenu.removeAll();
                 if (multipleMods) {
@@ -153,7 +167,9 @@ public final class InstanceModsTab extends JPanel {
                 this.showPopup(e);
             }
         });
-        this.add(new JScrollPane(this.modTable), BorderLayout.CENTER);
+        JScrollPane tableScrollPane = new JScrollPane(this.modTable);
+        tableScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
+        this.add(tableScrollPane, BorderLayout.CENTER);
 
         JPanel actions = new JPanel(new BorderLayout());
         actions.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
@@ -170,7 +186,12 @@ public final class InstanceModsTab extends JPanel {
         bottomContent.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 8));
         bottomContent.add(this.selectedModInfo, BorderLayout.CENTER);
         bottomContent.add(actions, BorderLayout.SOUTH);
+        this.bottomContentSize = bottomContent.getPreferredSize();
+        bottomContent.setPreferredSize(this.bottomContentSize);
         this.add(bottomContent, BorderLayout.SOUTH);
+
+        this.bottomContentNoInfoHeight = bottomContent.getPreferredSize().height;
+        this.bottomContentWithInfoHeight = this.bottomContentNoInfoHeight + 8 + this.selectedModInfo.getPreferredSize().height;
 
         this.downloadModsButton.addActionListener(event -> this.launcherActions.downloadModsRequested());
         this.openModsFolderButton.addActionListener(event -> this.launcherActions.openModsFolderRequested());
@@ -187,6 +208,8 @@ public final class InstanceModsTab extends JPanel {
 
     public void setMods(@NotNull List<ManagedMod> mods) {
         this.modTableModel.setMods(mods);
+        this.resizeInfoHeightFlag = false;
+        this.selectedModInfo.update((ManagedMod) null);
     }
 
     @NotNull
@@ -353,6 +376,7 @@ public final class InstanceModsTab extends JPanel {
             textSide.add(this.nameLabel, BorderLayout.NORTH);
             textSide.add(this.descriptionArea, BorderLayout.CENTER);
             this.add(textSide, BorderLayout.CENTER);
+            this.setVisible(false);
         }
 
         private void update(@Nullable ManagedMod mod) {
@@ -360,12 +384,14 @@ public final class InstanceModsTab extends JPanel {
                 this.iconLabel.setIcon(null);
                 this.nameLabel.setText(" ");
                 this.descriptionArea.setText("");
+                this.setVisible(false);
             }
             else {
                 this.iconLabel.setIcon(mod.icon() == null ? null : new ImageIcon(mod.icon()));
                 this.nameLabel.setText(mod.name());
                 this.descriptionArea.setText(mod.description());
                 this.descriptionArea.setCaretPosition(0);
+                this.setVisible(true);
             }
         }
     }

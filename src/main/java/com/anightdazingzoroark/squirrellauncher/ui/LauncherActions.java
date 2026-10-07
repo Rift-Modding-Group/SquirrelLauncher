@@ -430,10 +430,6 @@ public final class LauncherActions {
     }
 
     //---mods actions---
-    public void modSelectionChanged() {
-        this.launcherFrame.updateControlState();
-    }
-
     public void downloadModsRequested() {
         MinecraftInstance instance = this.selectedInstance();
         if (instance == null) return;
