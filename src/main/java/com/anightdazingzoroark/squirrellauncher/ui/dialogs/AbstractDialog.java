@@ -55,14 +55,14 @@ public abstract class AbstractDialog<T> extends JDialog {
         this.dispose();
     }
 
-    protected final void addRow(@NotNull JPanel panel, int row, @NotNull JLabel label, @NotNull Component component) {
+    protected final void addRow(@NotNull JPanel panel, int row, @NotNull Component label, @NotNull Component component) {
         this.addRow(panel, row, label, component, GridBagConstraints.LINE_START, 5);
     }
 
     protected final void addRow(
             @NotNull JPanel panel,
             int row,
-            @NotNull JLabel label,
+            @NotNull Component label,
             @NotNull Component component,
             int componentHeight
     ) {
@@ -76,7 +76,7 @@ public abstract class AbstractDialog<T> extends JDialog {
     private void addRow(
             @NotNull JPanel panel,
             int row,
-            @NotNull JLabel label,
+            @NotNull Component label,
             @NotNull Component component,
             int labelAnchor,
             int labelTopInset

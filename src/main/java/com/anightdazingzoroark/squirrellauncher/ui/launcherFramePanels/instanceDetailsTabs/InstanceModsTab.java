@@ -46,6 +46,8 @@ public final class InstanceModsTab extends JPanel {
     private final JMenuItem viewModPageItem = new JMenuItem(Localization.text("instance.mods.menu.view_page"));
     @NotNull
     private final JMenuItem checkModUpdatesItem = new JMenuItem(Localization.text("instance.mods.menu.check_updates"));
+    @NotNull
+    private final JMenuItem deleteModItem = new JMenuItem(Localization.text("instance.mods.menu.remove"));
 
     public InstanceModsTab(@NotNull LauncherActions launcherActions) {
         super(new BorderLayout(0, 8));
@@ -53,7 +55,8 @@ public final class InstanceModsTab extends JPanel {
         this.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
         this.configureMenu();
 
-        this.modTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        this.modTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        this.modTable.setAutoCreateRowSorter(true);
         this.modTable.setFillsViewportHeight(true);
         this.modTable.setRowHeight(52);
         this.modTable.getTableHeader().setResizingAllowed(false);
@@ -79,7 +82,8 @@ public final class InstanceModsTab extends JPanel {
         this.modTable.getSelectionModel().addListSelectionListener(event -> {
             if (event.getValueIsAdjusting()) return;
 
-            this.selectedModInfo.update(this.selectedMod());
+            List<ManagedMod> selectedMods = this.selectedMods();
+            this.selectedModInfo.update(selectedMods.size() == 1 ? selectedMods.getFirst() : null);
             this.launcherActions.modSelectionChanged();
         });
         this.modTable.addMouseListener(new MouseAdapter() {
@@ -89,14 +93,34 @@ public final class InstanceModsTab extends JPanel {
                 int row = InstanceModsTab.this.modTable.rowAtPoint(e.getPoint());
                 if (row < 0) return;
 
-                InstanceModsTab.this.modTable.setRowSelectionInterval(row, row);
-                ManagedMod mod = InstanceModsTab.this.selectedMod();
-                InstanceModsTab.this.viewModPageItem.setEnabled(
-                        mod != null && mod.providerPageUrl() != null && !mod.providerPageUrl().isBlank()
-                );
-                InstanceModsTab.this.checkModUpdatesItem.setEnabled(
-                        mod != null && mod.provider() != null && mod.providerProjectId() != null && mod.providerFileId() != null
-                );
+                if (!InstanceModsTab.this.modTable.isRowSelected(row)) {
+                    InstanceModsTab.this.modTable.setRowSelectionInterval(row, row);
+                }
+                List<ManagedMod> selectedMods = InstanceModsTab.this.selectedMods();
+                boolean multipleMods = selectedMods.size() > 1;
+                ManagedMod mod = selectedMods.size() == 1 ? selectedMods.getFirst() : null;
+                InstanceModsTab.this.viewModPageItem.setEnabled(mod != null
+                        && mod.providerPageUrl() != null
+                        && !mod.providerPageUrl().isBlank());
+                InstanceModsTab.this.checkModUpdatesItem.setEnabled(selectedMods.stream().anyMatch(selectedMod ->
+                        selectedMod.provider() != null
+                                && selectedMod.providerProjectId() != null
+                                && selectedMod.providerFileId() != null
+                ));
+                InstanceModsTab.this.modActionsMenu.removeAll();
+                if (multipleMods) {
+                    InstanceModsTab.this.modActionsMenu.add(InstanceModsTab.this.activateModItem);
+                    InstanceModsTab.this.modActionsMenu.add(InstanceModsTab.this.checkModUpdatesItem);
+                    InstanceModsTab.this.modActionsMenu.add(InstanceModsTab.this.deleteModItem);
+                }
+                else {
+                    InstanceModsTab.this.modActionsMenu.add(InstanceModsTab.this.activateModItem);
+                    InstanceModsTab.this.modActionsMenu.addSeparator();
+                    InstanceModsTab.this.modActionsMenu.add(InstanceModsTab.this.viewModPageItem);
+                    InstanceModsTab.this.modActionsMenu.add(InstanceModsTab.this.checkModUpdatesItem);
+                    InstanceModsTab.this.modActionsMenu.addSeparator();
+                    InstanceModsTab.this.modActionsMenu.add(InstanceModsTab.this.deleteModItem);
+                }
                 InstanceModsTab.this.modActionsMenu.show(InstanceModsTab.this.modTable, e.getX(), e.getY());
             }
 
@@ -137,15 +161,7 @@ public final class InstanceModsTab extends JPanel {
         this.viewModPageItem.addActionListener(event -> this.launcherActions.openModPageRequested());
         this.checkModUpdatesItem.addActionListener(event -> this.launcherActions.checkModUpdateRequested());
 
-        JMenuItem deleteModItem = new JMenuItem(Localization.text("instance.mods.menu.remove"));
-        deleteModItem.addActionListener(event -> this.launcherActions.removeModRequested());
-
-        this.modActionsMenu.add(this.activateModItem);
-        this.modActionsMenu.addSeparator();
-        this.modActionsMenu.add(this.viewModPageItem);
-        this.modActionsMenu.add(this.checkModUpdatesItem);
-        this.modActionsMenu.addSeparator();
-        this.modActionsMenu.add(deleteModItem);
+        this.deleteModItem.addActionListener(event -> this.launcherActions.removeModRequested());
     }
 
     public void setMods(@NotNull List<ManagedMod> mods) {
@@ -177,10 +193,14 @@ public final class InstanceModsTab extends JPanel {
         }
     }
 
-    @Nullable
-    public ManagedMod selectedMod() {
-        int row = this.modTable.getSelectedRow();
-        return row < 0 ? null : this.modTableModel.modAt(row);
+    @NotNull
+    public List<ManagedMod> selectedMods() {
+        int[] selectedRows = this.modTable.getSelectedRows();
+        List<ManagedMod> selectedMods = new ArrayList<>(selectedRows.length);
+        for (int selectedRow : selectedRows) {
+            selectedMods.add(this.modTableModel.modAt(this.modTable.convertRowIndexToModel(selectedRow)));
+        }
+        return List.copyOf(selectedMods);
     }
 
     public void updateControlState(boolean available, boolean supportsMods) {
