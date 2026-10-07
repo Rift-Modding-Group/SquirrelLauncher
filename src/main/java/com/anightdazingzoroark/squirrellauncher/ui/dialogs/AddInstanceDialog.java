@@ -98,7 +98,13 @@ public final class AddInstanceDialog extends AbstractDialog<InstanceAdditionRequ
         JPanel creationPanel = new JPanel(new GridBagLayout());
         creationPanel.setBorder(BorderFactory.createEmptyBorder(12, 8, 12, 8));
         this.addRow(creationPanel, 0, typeLabel, typePanel);
-        this.addLoaderVersionRow(creationPanel, 1, this.loaderLabel, this.loaderVersions);
+        this.addRow(
+                creationPanel,
+                1,
+                this.loaderLabel,
+                this.loaderVersions,
+                this.loaderVersions.dropdownPreferredHeight()
+        );
         this.tabs.addTab(Localization.text("add.tab.create"), creationPanel);
 
         JPanel importPanel = new JPanel(new GridBagLayout());
@@ -190,7 +196,6 @@ public final class AddInstanceDialog extends AbstractDialog<InstanceAdditionRequ
         this.updateLoaderField();
         this.updateAddButton();
         this.resizeToContent();
-        this.setResizable(false);
         this.setLocationRelativeTo(owner);
     }
 

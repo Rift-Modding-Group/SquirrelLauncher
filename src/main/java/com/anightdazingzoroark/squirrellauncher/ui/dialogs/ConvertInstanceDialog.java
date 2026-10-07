@@ -57,7 +57,13 @@ public final class ConvertInstanceDialog extends AbstractDialog<ConvertInstanceD
                 new JLabel(Localization.text("convert.label.type")),
                 typePanel
         );
-        this.addLoaderVersionRow(fields, 2, this.loaderLabel, this.loaderVersions);
+        this.addRow(
+                fields,
+                2,
+                this.loaderLabel,
+                this.loaderVersions,
+                this.loaderVersions.dropdownPreferredHeight()
+        );
         this.add(fields, BorderLayout.CENTER);
 
         JButton cancelButton = new JButton(Localization.text("convert.button.cancel"));
@@ -80,7 +86,6 @@ public final class ConvertInstanceDialog extends AbstractDialog<ConvertInstanceD
 
         this.updateLoaderField();
         this.resizeToContent();
-        this.setResizable(false);
         this.setLocationRelativeTo(owner);
     }
 

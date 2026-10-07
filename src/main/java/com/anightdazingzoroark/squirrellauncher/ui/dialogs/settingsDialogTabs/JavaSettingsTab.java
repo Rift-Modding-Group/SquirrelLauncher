@@ -217,6 +217,7 @@ public final class JavaSettingsTab extends AbstractSettingsTab {
             //show a special dialog for linux users
             LinuxJavaReminderDialog reminderDialog = new LinuxJavaReminderDialog(SwingUtilities.getWindowAncestor(this));
             LinuxJavaReminderDialog.Result result = reminderDialog.showModal();
+            if (result == null) return;
             if (result.hideReminder()) {
                 try {
                     this.launcherService.dismissLinuxJavaPackageManagerReminder();

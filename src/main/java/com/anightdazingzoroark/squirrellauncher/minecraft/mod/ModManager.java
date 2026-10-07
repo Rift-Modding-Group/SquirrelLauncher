@@ -80,6 +80,87 @@ public final class ModManager {
     }
 
     @NotNull
+    public ManagedMod update(
+            @NotNull ManagedMod currentMod,
+            @NotNull Path source,
+            @NotNull ModDownloadFile downloadFile
+    ) throws IOException {
+        this.initialize();
+        ModManager.validateModFile(source);
+
+        String updatedFileName = source.getFileName().toString();
+        String currentStoredName = currentMod.state() == ModState.DISABLED
+                ? currentMod.fileName() + ModManager.DISABLED_SUFFIX
+                : currentMod.fileName();
+        String updatedStoredName = currentMod.state() == ModState.DISABLED
+                ? updatedFileName + ModManager.DISABLED_SUFFIX
+                : updatedFileName;
+        Path currentTarget = this.resolveSafe(currentStoredName);
+        Path updatedTarget = this.resolveSafe(updatedStoredName);
+        Path updatedEnabledTarget = this.resolveSafe(updatedFileName);
+        Path updatedDisabledTarget = this.resolveSafe(updatedFileName + ModManager.DISABLED_SUFFIX);
+        if (!Files.isRegularFile(currentTarget)) {
+            throw new IOException("Mod to update was not found: " + currentMod.fileName());
+        }
+        if ((!updatedEnabledTarget.equals(currentTarget) && Files.exists(updatedEnabledTarget))
+                || (!updatedDisabledTarget.equals(currentTarget) && Files.exists(updatedDisabledTarget))) {
+            throw new IOException("Mod is already managed by this instance: " + updatedFileName);
+        }
+
+        Path backup = Files.createTempFile(this.modsDirectory, ".mod-update-backup-", ".jar.backup");
+        Files.deleteIfExists(backup);
+        this.loadMetadata();
+        Map<String, InstalledModMetadata> previousMetadata = new HashMap<>(this.installedMetadata);
+        boolean currentMoved = false;
+        boolean updateCopied = false;
+        try {
+            Files.move(currentTarget, backup);
+            currentMoved = true;
+            Files.copy(source, updatedTarget);
+            updateCopied = true;
+            this.installedMetadata.remove(currentMod.fileName());
+            this.installedMetadata.put(updatedFileName, new InstalledModMetadata(
+                    downloadFile.platform(),
+                    downloadFile.projectId(),
+                    downloadFile.providerFileId(),
+                    downloadFile.projectUrl()
+            ));
+            this.saveMetadata();
+            ManagedMod updatedMod = this.describe(updatedFileName, updatedTarget, currentMod.state());
+            Files.deleteIfExists(backup);
+            System.out.println("Updated mod: " + currentMod.fileName() + " -> " + updatedFileName);
+            return updatedMod;
+        }
+        catch (IOException | RuntimeException exception) {
+            if (updateCopied) {
+                try {
+                    Files.deleteIfExists(updatedTarget);
+                }
+                catch (IOException rollbackException) {
+                    exception.addSuppressed(rollbackException);
+                }
+            }
+            if (currentMoved) {
+                try {
+                    Files.move(backup, currentTarget, StandardCopyOption.REPLACE_EXISTING);
+                }
+                catch (IOException rollbackException) {
+                    exception.addSuppressed(rollbackException);
+                }
+            }
+            this.installedMetadata.clear();
+            this.installedMetadata.putAll(previousMetadata);
+            try {
+                this.saveMetadata();
+            }
+            catch (IOException rollbackException) {
+                exception.addSuppressed(rollbackException);
+            }
+            throw exception;
+        }
+    }
+
+    @NotNull
     private ManagedMod installWithMetadata(@NotNull Path source, @Nullable InstalledModMetadata downloadMetadata) throws IOException {
         this.initialize();
         ModManager.validateModFile(source);

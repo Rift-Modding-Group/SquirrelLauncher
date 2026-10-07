@@ -272,10 +272,7 @@ public final class ModDownloadManager {
                 BufferedImage icon = new BufferedImage(iconWidth, iconHeight, BufferedImage.TYPE_INT_ARGB);
                 Graphics2D drawing = icon.createGraphics();
                 try {
-                    drawing.setRenderingHint(
-                            RenderingHints.KEY_INTERPOLATION,
-                            RenderingHints.VALUE_INTERPOLATION_BILINEAR
-                    );
+                    drawing.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
                     drawing.drawImage(sourceIcon, 0, 0, iconWidth, iconHeight, null);
                 }
                 finally {
@@ -306,7 +303,9 @@ public final class ModDownloadManager {
         ModDownloadProject project = mod.provider().getModPlatformHandler().getModDownloadProject(mod.providerProjectId(), this.favoriteProjects);
 
         List<ModDownloadFile> compatibleFiles = this.files(project, true);
-        if (compatibleFiles.isEmpty() || compatibleFiles.getFirst().providerFileId().equals(mod.providerFileId())) return List.of();
+        for (ModDownloadFile compatibleFile : compatibleFiles) {
+            if (compatibleFile.providerFileId().equals(mod.providerFileId())) return List.of();
+        }
         return compatibleFiles;
     }
 
@@ -359,7 +358,31 @@ public final class ModDownloadManager {
         return platform.name() + ':' + projectId;
     }
 
-    public void install(@NotNull MinecraftInstance instance, @NotNull ModDownloadFile file) throws IOException, InterruptedException {
+    @NotNull
+    public ManagedMod install(@NotNull MinecraftInstance instance, @NotNull ModDownloadFile file) throws IOException, InterruptedException {
+        return this.downloadAndInstall(instance, null, file);
+    }
+
+    @NotNull
+    public ManagedMod update(
+            @NotNull MinecraftInstance instance,
+            @NotNull ManagedMod currentMod,
+            @NotNull ModDownloadFile file
+    ) throws IOException, InterruptedException {
+        if (currentMod.provider() != file.platform()
+                || currentMod.providerProjectId() == null
+                || !currentMod.providerProjectId().equals(file.projectId())) {
+            throw new IOException("The selected update does not belong to the installed mod.");
+        }
+        return this.downloadAndInstall(instance, currentMod, file);
+    }
+
+    @NotNull
+    private ManagedMod downloadAndInstall(
+            @NotNull MinecraftInstance instance,
+            @Nullable ManagedMod currentMod,
+            @NotNull ModDownloadFile file
+    ) throws IOException, InterruptedException {
         Path suppliedFileName = Path.of(file.fileName());
         if (suppliedFileName.getNameCount() != 1 || !suppliedFileName.getFileName().toString().equals(file.fileName())) {
             throw new IOException("The provider returned an invalid mod filename: " + file.fileName());
@@ -380,7 +403,7 @@ public final class ModDownloadManager {
         }
         ModManager modManager = new ModManager(instance);
         modManager.initialize();
-        if (modManager.contains(file.fileName())) {
+        if (currentMod == null && modManager.contains(file.fileName())) {
             throw new IOException("Mod is already managed by this instance: " + file.fileName());
         }
         Path stagingDirectory = Files.createTempDirectory(modManager.modsDirectory(), ".mod-download-");
@@ -400,7 +423,9 @@ public final class ModDownloadManager {
                     file.sha1(),
                     headers
             );
-            modManager.install(downloadedFile, file);
+            return currentMod == null
+                    ? modManager.install(downloadedFile, file)
+                    : modManager.update(currentMod, downloadedFile, file);
         }
         finally {
             Files.deleteIfExists(downloadedFile);

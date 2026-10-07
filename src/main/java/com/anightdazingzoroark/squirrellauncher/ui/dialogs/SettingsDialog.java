@@ -11,9 +11,6 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.KeyEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
 
 public final class SettingsDialog extends AbstractDialog<Void> {
     @NotNull
@@ -47,27 +44,14 @@ public final class SettingsDialog extends AbstractDialog<Void> {
         this.tabs.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         this.add(this.tabs, BorderLayout.CENTER);
 
-        this.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
-        this.addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowClosing(@NotNull WindowEvent event) {
-                SettingsDialog.this.attemptClose();
-            }
-        });
-        this.getRootPane().registerKeyboardAction(
-                event -> this.attemptClose(),
-                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
-                JComponent.WHEN_IN_FOCUSED_WINDOW
-        );
-
         this.setMinimumSize(new Dimension(680, 520));
         this.resizeToContent();
         this.setSize(this.getMinimumSize().width, this.getHeight());
-        this.setResizable(false);
         this.setLocationRelativeTo(owner);
     }
 
-    private void attemptClose() {
+    @Override
+    protected void closeDialog() {
         if (this.accountOperationInProgress || !this.gameSettingsTab.confirmDiscardUnsavedChanges()) return;
         this.dispose();
     }

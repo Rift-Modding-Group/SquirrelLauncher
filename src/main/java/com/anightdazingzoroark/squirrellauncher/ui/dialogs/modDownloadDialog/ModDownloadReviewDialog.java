@@ -2,51 +2,38 @@ package com.anightdazingzoroark.squirrellauncher.ui.dialogs.modDownloadDialog;
 
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadFile;
 import com.anightdazingzoroark.squirrellauncher.ui.Localization;
+import com.anightdazingzoroark.squirrellauncher.ui.dialogs.AbstractDialog;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
-import javax.swing.JComponent;
-import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.KeyStroke;
-import javax.swing.WindowConstants;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Window;
-import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public final class ModDownloadReviewDialog extends JDialog {
+public final class ModDownloadReviewDialog extends AbstractDialog<Boolean> {
     @NotNull
     private final Map<String, JCheckBox> fileSelections = new LinkedHashMap<>();
     @NotNull
     private final List<JCheckBox> dependencySelections = new ArrayList<>();
-    private boolean confirmed;
-
     public ModDownloadReviewDialog(
             @NotNull Window owner,
             @NotNull List<ModDownloadFile> selectedFiles,
             @NotNull List<ModDownloadFile> dependencies
     ) {
-        super(owner, Localization.text("mod.download.review.title"), ModalityType.APPLICATION_MODAL);
-        this.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
-        this.setResizable(false);
+        super(owner, Localization.text("mod.download.review.title"));
         this.setLayout(new BorderLayout(0, 12));
-        this.getRootPane().registerKeyboardAction(
-                event -> this.dispose(),
-                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
-                JComponent.WHEN_IN_FOCUSED_WINDOW
-        );
 
         JPanel headingPanel = new JPanel(new BorderLayout(0, 6));
         headingPanel.setBorder(BorderFactory.createEmptyBorder(16, 16, 0, 16));
@@ -78,20 +65,12 @@ public final class ModDownloadReviewDialog extends JDialog {
         cancelButton.addActionListener(event -> this.dispose());
         actions.add(cancelButton);
         JButton confirmButton = new JButton(Localization.text("mod.download.review.confirm"));
-        confirmButton.addActionListener(event -> {
-            this.confirmed = true;
-            this.dispose();
-        });
+        confirmButton.addActionListener(event -> this.complete(Boolean.TRUE));
         actions.add(confirmButton);
         this.getRootPane().setDefaultButton(confirmButton);
         this.add(actions, BorderLayout.SOUTH);
-        this.pack();
+        this.resizeToContent();
         this.setLocationRelativeTo(owner);
-    }
-
-    public boolean showModal() {
-        this.setVisible(true);
-        return this.confirmed;
     }
 
     public boolean isSelected(@NotNull ModDownloadFile file) {

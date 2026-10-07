@@ -521,8 +521,18 @@ public final class LauncherService implements AutoCloseable {
         return this.modDownloadManager.updateFor(mod);
     }
 
-    public void installMod(@NotNull MinecraftInstance instance, @NotNull ModDownloadFile file) throws Exception {
-        this.modDownloadManager.install(instance, file);
+    @NotNull
+    public ManagedMod installMod(@NotNull MinecraftInstance instance, @NotNull ModDownloadFile file) throws Exception {
+        return this.modDownloadManager.install(instance, file);
+    }
+
+    @NotNull
+    public ManagedMod updateMod(
+            @NotNull MinecraftInstance instance,
+            @NotNull ManagedMod currentMod,
+            @NotNull ModDownloadFile file
+    ) throws Exception {
+        return this.modDownloadManager.update(instance, currentMod, file);
     }
 
     @NotNull

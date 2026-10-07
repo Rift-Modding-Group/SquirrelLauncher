@@ -7,6 +7,7 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.auth.MinecraftAccount;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.InstanceLaunchSettings;
 import com.anightdazingzoroark.squirrellauncher.minecraft.instance.MinecraftInstance;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ManagedMod;
+import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadFile;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModState;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntime;
 import com.anightdazingzoroark.squirrellauncher.minecraft.runtime.JavaRuntimeManager;
@@ -540,21 +541,28 @@ public final class LauncherActions {
                     }
                     //updates found, show downloadable files
                     else {
-                        new ModUpdateDialog(this.launcherFrame, mod, update);
-                        /*
-                        String version = update.versionName().isBlank() ? update.fileName() : update.versionName();
-                        String message = Localization.text(
-                                "instance.mods.update.available",
-                                mod.name(),
-                                version,
-                                update.fileName()
+                        ModDownloadFile selectedUpdate = new ModUpdateDialog(
+                                this.launcherFrame,
+                                mod,
+                                update
+                        ).showModal();
+                        if (selectedUpdate == null) return;
+                        this.launcherFrame.runTask(
+                                instance.id(),
+                                Localization.text("instance.mods.status.downloading_update", mod.name()),
+                                true,
+                                () -> {
+                                    this.launcherService.updateMod(instance, mod, selectedUpdate);
+                                    return null;
+                                },
+                                ignored -> {
+                                    this.launcherFrame.setStatus(Localization.text(
+                                            "instance.mods.status.updated",
+                                            mod.name()
+                                    ));
+                                    this.refreshMods(instance);
+                                }
                         );
-                        JOptionPane.showMessageDialog(
-                                this.launcherFrame, message,
-                                Localization.text("instance.mods.dialog.update"),
-                                JOptionPane.INFORMATION_MESSAGE
-                        );
-                         */
                     }
                 }
         );

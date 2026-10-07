@@ -9,16 +9,17 @@ import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadProject
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadProjectDescription;
 import com.anightdazingzoroark.squirrellauncher.minecraft.mod.ModDownloadSearchPage;
 import com.anightdazingzoroark.squirrellauncher.ui.Localization;
+import com.anightdazingzoroark.squirrellauncher.ui.dialogs.AbstractDialog;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.BorderFactory;
+import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
-import javax.swing.JDialog;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
@@ -31,8 +32,6 @@ import javax.swing.JTextField;
 import javax.swing.SwingWorker;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
-import javax.swing.KeyStroke;
-import javax.swing.WindowConstants;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.BorderLayout;
@@ -47,9 +46,6 @@ import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.Window;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
@@ -63,7 +59,7 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 
-public final class ModDownloadDialog extends JDialog {
+public final class ModDownloadDialog extends AbstractDialog<Void> {
     @NotNull
     private final LauncherService launcherService;
     @NotNull
@@ -83,7 +79,15 @@ public final class ModDownloadDialog extends JDialog {
     @NotNull
     private final JLabel versionLabel = new JLabel(Localization.text("mod.download.version"));
     @NotNull
-    private final JComboBox<ModDownloadFile> fileSelector = new JComboBox<>();
+    private final Map<String, ManagedMod> installedMods = new LinkedHashMap<>();
+    @NotNull
+    private final JComboBox<ModDownloadFile> fileSelector = new JComboBox<>(new DefaultComboBoxModel<>() {
+        @Override
+        public void setSelectedItem(@Nullable Object selection) {
+            if (selection instanceof ModDownloadFile file && ModDownloadDialog.this.isInstalledFile(file)) return;
+            super.setSelectedItem(selection);
+        }
+    });
     @NotNull
     private final JButton selectButton = new JButton(Localization.text("mod.download.button.select"));
     @NotNull
@@ -98,8 +102,6 @@ public final class ModDownloadDialog extends JDialog {
     private List<ModDownloadFile> files = List.of();
     @NotNull
     private final Map<String, ModDownloadFile> selectedFiles = new LinkedHashMap<>();
-    @NotNull
-    private final Set<String> installedProjectKeys = new HashSet<>();
     @NotNull
     private final List<ModDownloadProject> pendingIconProjects = new ArrayList<>();
     @NotNull
@@ -132,29 +134,23 @@ public final class ModDownloadDialog extends JDialog {
             @NotNull List<ManagedMod> installedMods,
             @NotNull Runnable installedListener
     ) {
-        super(owner, Localization.text("mod.download.title"), ModalityType.APPLICATION_MODAL);
+        super(owner, Localization.text("mod.download.title"));
         this.launcherService = launcherService;
         this.instance = instance;
         this.installedListener = installedListener;
         this.providerSelector = new JComboBox<>(ModDownloadPlatform.values());
         for (ManagedMod installedMod : installedMods) {
             if (installedMod.provider() == null || installedMod.providerProjectId() == null) continue;
-            this.installedProjectKeys.add(
-                    installedMod.provider().name() + ':' + installedMod.providerProjectId()
+            this.installedMods.put(
+                    installedMod.provider().name() + ':' + installedMod.providerProjectId(),
+                    installedMod
             );
         }
-        this.projectTable.setInstalledProjectKeys(this.installedProjectKeys);
+        this.projectTable.setInstalledProjectKeys(this.installedMods.keySet());
         this.searchTimer = new Timer(300, event -> this.search());
         this.searchTimer.setRepeats(false);
 
-        this.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
         this.setLayout(new BorderLayout(0, 12));
-        this.setResizable(false);
-        this.getRootPane().registerKeyboardAction(
-                event -> this.closeDialog(),
-                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
-                JComponent.WHEN_IN_FOCUSED_WINDOW
-        );
         JPanel headingPanel = new JPanel(new BorderLayout(0, 12));
         headingPanel.setBorder(BorderFactory.createEmptyBorder(16, 16, 0, 16));
         JLabel heading = new JLabel(Localization.text("mod.download.heading", instance.name()));
@@ -252,13 +248,18 @@ public final class ModDownloadDialog extends JDialog {
                     String size = file.fileSize() > 0L
                             ? String.format("%.1f MiB", file.fileSize() / (1024.0 * 1024.0))
                             : Localization.text("mod.download.size.unknown");
-                    label.setText(Localization.text(
+                    String description = Localization.text(
                             "mod.download.file",
                             versionName,
                             releaseType,
                             size,
                             file.fileName()
-                    ));
+                    );
+                    boolean installed = ModDownloadDialog.this.isInstalledFile(file);
+                    label.setText(installed
+                            ? Localization.text("mod.download.file.installed", description)
+                            : description);
+                    label.setEnabled(list.isEnabled() && !installed);
                 }
                 return label;
             }
@@ -457,18 +458,18 @@ public final class ModDownloadDialog extends JDialog {
                         for (ModDownloadFile file : ModDownloadDialog.this.files) {
                             ModDownloadDialog.this.fileSelector.addItem(file);
                         }
-                        if (selectedFile != null) {
-                            for (int fileIndex = 0;
-                                 fileIndex < ModDownloadDialog.this.fileSelector.getItemCount();
-                                 fileIndex++
-                            ) {
-                                ModDownloadFile candidate = ModDownloadDialog.this.fileSelector.getItemAt(fileIndex);
-                                if (candidate.providerFileId().equals(selectedFile.providerFileId())) {
-                                    ModDownloadDialog.this.fileSelector.setSelectedIndex(fileIndex);
-                                    break;
-                                }
+                        ModDownloadFile fileToSelect = null;
+                        for (int fileIndex = 0; fileIndex < ModDownloadDialog.this.fileSelector.getItemCount(); fileIndex++) {
+                            ModDownloadFile candidate = ModDownloadDialog.this.fileSelector.getItemAt(fileIndex);
+                            if (ModDownloadDialog.this.isInstalledFile(candidate)) continue;
+                            if (fileToSelect == null) fileToSelect = candidate;
+                            if (selectedFile != null
+                                    && candidate.providerFileId().equals(selectedFile.providerFileId())) {
+                                fileToSelect = candidate;
+                                break;
                             }
                         }
+                        ModDownloadDialog.this.fileSelector.setSelectedItem(fileToSelect);
                         ModDownloadDialog.this.statusLabel.setText(ModDownloadDialog.this.files.isEmpty()
                                 ? Localization.text("mod.download.status.no_versions")
                                 : Localization.text(
@@ -547,7 +548,7 @@ public final class ModDownloadDialog extends JDialog {
                                 selectedDownloads,
                                 dependencies
                         );
-                        if (!reviewDialog.showModal()) {
+                        if (!Boolean.TRUE.equals(reviewDialog.showModal())) {
                             ModDownloadDialog.this.statusLabel.setText(
                                     Localization.text("mod.download.status.dependencies_cancelled")
                             );
@@ -575,18 +576,26 @@ public final class ModDownloadDialog extends JDialog {
                         ));
                         ModDownloadDialog.this.installWorker = new SwingWorker<>() {
                             @NotNull
-                            private final List<ModDownloadFile> installedFiles = new ArrayList<>();
+                            private final Map<String, ManagedMod> completedMods = new LinkedHashMap<>();
                             private int installedCount;
 
                             @Override
                             @Nullable
                             protected Void doInBackground() throws Exception {
                                 for (ModDownloadFile file : filesToInstall) {
-                                    ModDownloadDialog.this.launcherService.installMod(
-                                            ModDownloadDialog.this.instance,
-                                            file
-                                    );
-                                    this.installedFiles.add(file);
+                                    String projectKey = ModDownloadDialog.projectKey(file);
+                                    ManagedMod installedMod = ModDownloadDialog.this.installedMods.get(projectKey);
+                                    ManagedMod completedMod = installedMod == null
+                                            ? ModDownloadDialog.this.launcherService.installMod(
+                                                    ModDownloadDialog.this.instance,
+                                                    file
+                                            )
+                                            : ModDownloadDialog.this.launcherService.updateMod(
+                                                    ModDownloadDialog.this.instance,
+                                                    installedMod,
+                                                    file
+                                            );
+                                    this.completedMods.put(projectKey, completedMod);
                                     this.installedCount++;
                                 }
                                 return null;
@@ -626,14 +635,17 @@ public final class ModDownloadDialog extends JDialog {
                                             exception
                                     );
                                 }
-                                for (ModDownloadFile installedFile : this.installedFiles) {
-                                    String installedProjectKey = ModDownloadDialog.projectKey(installedFile);
-                                    ModDownloadDialog.this.selectedFiles.remove(installedProjectKey);
-                                    ModDownloadDialog.this.installedProjectKeys.add(installedProjectKey);
+                                for (Map.Entry<String, ManagedMod> completedMod : this.completedMods.entrySet()) {
+                                    ModDownloadDialog.this.selectedFiles.remove(completedMod.getKey());
+                                    ModDownloadDialog.this.installedMods.put(
+                                            completedMod.getKey(),
+                                            completedMod.getValue()
+                                    );
                                 }
                                 ModDownloadDialog.this.projectTable.setInstalledProjectKeys(
-                                        ModDownloadDialog.this.installedProjectKeys
+                                        ModDownloadDialog.this.installedMods.keySet()
                                 );
+                                ModDownloadDialog.this.fileSelector.repaint();
                                 if (this.installedCount > 0) ModDownloadDialog.this.installedListener.run();
                                 ModDownloadDialog.this.updateControlState();
                             }
@@ -664,21 +676,11 @@ public final class ModDownloadDialog extends JDialog {
             this.updateControlState();
         });
         this.closeButton.addActionListener(event -> this.closeDialog());
-        this.addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowClosing(@NotNull WindowEvent event) {
-                ModDownloadDialog.this.closeDialog();
-            }
-        });
 
         this.setMinimumSize(new Dimension(1200, 700));
-        this.pack();
+        this.resizeToContent();
         this.setLocationRelativeTo(owner);
         this.search();
-    }
-
-    public void showModal() {
-        this.setVisible(true);
     }
 
     private void scheduleSearch() {
@@ -878,7 +880,10 @@ public final class ModDownloadDialog extends JDialog {
         this.selectButton.setText(Localization.text(projectSelected
                 ? "mod.download.button.deselect"
                 : "mod.download.button.select"));
-        this.selectButton.setEnabled(!loadingFiles && !busy && this.selectedFile() != null);
+        ModDownloadFile selectedFile = this.selectedFile();
+        this.selectButton.setEnabled(
+                !loadingFiles && !busy && selectedFile != null && !this.isInstalledFile(selectedFile)
+        );
         this.downloadButton.setText(Localization.text(
                 "mod.download.button.download_selected_count",
                 this.selectedFiles.size()
@@ -900,6 +905,13 @@ public final class ModDownloadDialog extends JDialog {
         return (ModDownloadFile) this.fileSelector.getSelectedItem();
     }
 
+    private boolean isInstalledFile(@NotNull ModDownloadFile file) {
+        ManagedMod installedMod = this.installedMods.get(ModDownloadDialog.projectKey(file));
+        return installedMod != null
+                && installedMod.providerFileId() != null
+                && installedMod.providerFileId().equals(file.providerFileId());
+    }
+
     private void showFailure(@NotNull String title, @NotNull ExecutionException exception) {
         Throwable cause = exception.getCause();
         String message = cause instanceof HttpRetryException retryException
@@ -911,7 +923,8 @@ public final class ModDownloadDialog extends JDialog {
         JOptionPane.showMessageDialog(this, message, title, JOptionPane.ERROR_MESSAGE);
     }
 
-    private void closeDialog() {
+    @Override
+    protected void closeDialog() {
         this.searchTimer.stop();
         if (this.installWorker != null) {
             this.installWorker.cancel(true);

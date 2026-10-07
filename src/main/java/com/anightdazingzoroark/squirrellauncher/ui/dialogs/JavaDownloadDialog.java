@@ -11,7 +11,6 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
-import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
@@ -21,7 +20,6 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingWorker;
-import javax.swing.WindowConstants;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.awt.Component;
@@ -32,14 +30,12 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Window;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 
-public final class JavaDownloadDialog extends JDialog {
+public final class JavaDownloadDialog extends AbstractDialog<Void> {
     @NotNull
     private final JavaRuntimeDownloadManager downloadManager;
     @NotNull
@@ -69,7 +65,7 @@ public final class JavaDownloadDialog extends JDialog {
     private int packageGeneration;
 
     public JavaDownloadDialog(@NotNull Window owner, @NotNull Runnable installedListener) {
-        super(owner, Localization.text("settings.java.download.title"), ModalityType.APPLICATION_MODAL);
+        super(owner, Localization.text("settings.java.download.title"));
         this.downloadManager = new JavaRuntimeDownloadManager();
         this.installedListener = installedListener;
         this.versionSelector = new JComboBox<>(JavaVersion.values());
@@ -91,7 +87,6 @@ public final class JavaDownloadDialog extends JDialog {
         this.progressBar = new JProgressBar(0, 100);
         this.packages = List.of();
 
-        this.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
         this.setLayout(new BorderLayout(0, 12));
         JPanel content = new JPanel(new GridBagLayout());
         content.setBorder(javax.swing.BorderFactory.createEmptyBorder(16, 16, 0, 16));
@@ -262,33 +257,22 @@ public final class JavaDownloadDialog extends JDialog {
             this.installWorker.execute();
             this.updateControlState();
         });
-        this.closeButton.addActionListener(event -> {
-            if (this.installWorker != null) {
-                this.installWorker.cancel(true);
-                return;
-            }
-            if (this.packageWorker != null) this.packageWorker.cancel(true);
-            this.dispose();
-        });
-        this.addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowClosing(@NotNull WindowEvent event) {
-                if (JavaDownloadDialog.this.installWorker != null) return;
-                if (JavaDownloadDialog.this.packageWorker != null) {
-                    JavaDownloadDialog.this.packageWorker.cancel(true);
-                }
-                JavaDownloadDialog.this.dispose();
-            }
-        });
+        this.closeButton.addActionListener(event -> this.closeDialog());
 
         this.setMinimumSize(new Dimension(720, 450));
-        this.pack();
+        this.resizeToContent();
         this.setLocationRelativeTo(owner);
         this.loadPackages();
     }
 
-    public void showModal() {
-        this.setVisible(true);
+    @Override
+    protected void closeDialog() {
+        if (this.installWorker != null) {
+            this.installWorker.cancel(true);
+            return;
+        }
+        if (this.packageWorker != null) this.packageWorker.cancel(true);
+        this.dispose();
     }
 
     private void loadPackages() {
@@ -360,7 +344,6 @@ public final class JavaDownloadDialog extends JDialog {
         };
         this.packageWorker.execute();
         this.updateControlState();
-        this.setResizable(false);
     }
 
     private void updateControlState() {

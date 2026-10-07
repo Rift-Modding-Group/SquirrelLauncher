@@ -1,6 +1,5 @@
 package com.anightdazingzoroark.squirrellauncher.ui.dialogs;
 
-import com.anightdazingzoroark.squirrellauncher.ui.dialogs.settingsDialogTabs.*;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -10,7 +9,10 @@ import javax.swing.event.DocumentListener;
 import java.awt.Component;
 import java.awt.GridBagConstraints;
 import java.awt.Insets;
+import java.awt.Window;
 import java.awt.event.KeyEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.Serial;
 
 /**
@@ -22,11 +24,18 @@ public abstract class AbstractDialog<T> extends JDialog {
     @Nullable
     private T result;
 
-    protected AbstractDialog(@NotNull JFrame owner, @NotNull String title) {
-        super(owner, title, true);
-        this.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+    protected AbstractDialog(@NotNull Window owner, @NotNull String title) {
+        super(owner, title, ModalityType.APPLICATION_MODAL);
+        this.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
+        this.setResizable(false);
+        this.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(@NotNull WindowEvent event) {
+                AbstractDialog.this.closeDialog();
+            }
+        });
         this.getRootPane().registerKeyboardAction(
-                e -> this.dispose(),
+                event -> this.closeDialog(),
                 KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
                 JComponent.WHEN_IN_FOCUSED_WINDOW
         );
@@ -42,19 +51,24 @@ public abstract class AbstractDialog<T> extends JDialog {
         this.pack();
     }
 
+    protected void closeDialog() {
+        this.dispose();
+    }
+
     protected final void addRow(@NotNull JPanel panel, int row, @NotNull JLabel label, @NotNull Component component) {
         this.addRow(panel, row, label, component, GridBagConstraints.LINE_START, 5);
     }
 
-    protected final void addLoaderVersionRow(
+    protected final void addRow(
             @NotNull JPanel panel,
             int row,
             @NotNull JLabel label,
-            @NotNull LoaderVersionComboBox component
+            @NotNull Component component,
+            int componentHeight
     ) {
         int labelTopInset = 5 + Math.max(
                 0,
-                (component.dropdownPreferredHeight() - label.getPreferredSize().height) / 2
+                (componentHeight - label.getPreferredSize().height) / 2
         );
         this.addRow(panel, row, label, component, GridBagConstraints.FIRST_LINE_START, labelTopInset);
     }
@@ -84,7 +98,7 @@ public abstract class AbstractDialog<T> extends JDialog {
     }
 
     @Nullable
-    public T showModal() {
+    public final T showModal() {
         this.setVisible(true);
         return this.result;
     }

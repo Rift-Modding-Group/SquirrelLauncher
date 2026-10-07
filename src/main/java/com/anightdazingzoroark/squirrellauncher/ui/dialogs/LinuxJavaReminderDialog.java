@@ -6,19 +6,14 @@ import org.jetbrains.annotations.NotNull;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
-import javax.swing.JComponent;
-import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.KeyStroke;
-import javax.swing.WindowConstants;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Window;
-import java.awt.event.KeyEvent;
 import java.io.File;
 import java.io.Serial;
 import java.nio.file.Files;
@@ -27,18 +22,16 @@ import java.nio.file.Paths;
 import java.util.Locale;
 
 //special dialog for linux users
-public final class LinuxJavaReminderDialog extends JDialog {
+public final class LinuxJavaReminderDialog extends AbstractDialog<LinuxJavaReminderDialog.Result> {
     @Serial
     private static final long serialVersionUID = 1L;
     @NotNull
     private final JCheckBox hideReminder;
-    private boolean downloadFromVendor;
 
     public LinuxJavaReminderDialog(@NotNull Window owner) {
-        super(owner, Localization.text("settings.java.linux_reminder.title"), ModalityType.APPLICATION_MODAL);
+        super(owner, Localization.text("settings.java.linux_reminder.title"));
         this.hideReminder = new JCheckBox(Localization.text("settings.java.linux_reminder.hide"));
 
-        this.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         this.setLayout(new BorderLayout(0, 12));
         JPanel content = new JPanel(new GridBagLayout());
         content.setBorder(BorderFactory.createEmptyBorder(16, 16, 0, 16));
@@ -52,12 +45,9 @@ public final class LinuxJavaReminderDialog extends JDialog {
         this.add(content, BorderLayout.CENTER);
 
         JButton okButton = new JButton(Localization.text("settings.java.linux_reminder.ok"));
-        okButton.addActionListener(event -> this.dispose());
+        okButton.addActionListener(event -> this.closeDialog());
         JButton vendorButton = new JButton(Localization.text("settings.java.linux_reminder.vendor"));
-        vendorButton.addActionListener(event -> {
-            this.downloadFromVendor = true;
-            this.dispose();
-        });
+        vendorButton.addActionListener(event -> this.complete(new Result(true, this.hideReminder.isSelected())));
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         actions.setBorder(BorderFactory.createEmptyBorder(0, 10, 10, 10));
         actions.add(okButton);
@@ -65,13 +55,7 @@ public final class LinuxJavaReminderDialog extends JDialog {
         this.add(actions, BorderLayout.SOUTH);
 
         this.getRootPane().setDefaultButton(vendorButton);
-        this.getRootPane().registerKeyboardAction(
-                event -> this.dispose(),
-                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
-                JComponent.WHEN_IN_FOCUSED_WINDOW
-        );
-        this.pack();
-        this.setResizable(false);
+        this.resizeToContent();
         this.setLocationRelativeTo(owner);
     }
 
@@ -185,10 +169,9 @@ public final class LinuxJavaReminderDialog extends JDialog {
         content.add(new JLabel(htmlStart + instructionText + htmlEnd), instruction);
     }
 
-    @NotNull
-    public Result showModal() {
-        this.setVisible(true);
-        return new Result(this.downloadFromVendor, this.hideReminder.isSelected());
+    @Override
+    protected void closeDialog() {
+        this.complete(new Result(false, this.hideReminder.isSelected()));
     }
 
     public record Result(boolean downloadFromVendor, boolean hideReminder) {}

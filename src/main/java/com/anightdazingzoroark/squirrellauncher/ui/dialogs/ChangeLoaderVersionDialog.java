@@ -45,11 +45,12 @@ public final class ChangeLoaderVersionDialog extends AbstractDialog<String> {
                 LauncherFrame.displayName(instance.type()),
                 instance.name()
         )), message);
-        this.addLoaderVersionRow(
+        this.addRow(
                 fields,
                 1,
                 new JLabel(Localization.text("version.label.loader")),
-                this.loaderVersions
+                this.loaderVersions,
+                this.loaderVersions.dropdownPreferredHeight()
         );
         this.add(fields, BorderLayout.CENTER);
 
@@ -71,7 +72,6 @@ public final class ChangeLoaderVersionDialog extends AbstractDialog<String> {
         this.loaderVersions.load(instance.type(), this.currentVersion);
         this.updateChangeButton();
         this.resizeToContent();
-        this.setResizable(false);
         this.setLocationRelativeTo(owner);
     }
 
