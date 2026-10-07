@@ -101,12 +101,6 @@ public final class JavaDownloadDialog extends AbstractDialog<Void> {
         heading.insets = new Insets(0, 0, 12, 0);
         content.add(headingLabel, heading);
 
-        GridBagConstraints versionLabel = new GridBagConstraints();
-        versionLabel.gridx = 0;
-        versionLabel.gridy = 1;
-        versionLabel.anchor = GridBagConstraints.LINE_START;
-        versionLabel.insets = new Insets(0, 0, 10, 10);
-        content.add(new JLabel(Localization.text("settings.java.download.java_version")), versionLabel);
         this.versionSelector.setRenderer(new DefaultListCellRenderer() {
             @Override
             @NotNull
@@ -123,13 +117,12 @@ public final class JavaDownloadDialog extends AbstractDialog<Void> {
                 return label;
             }
         });
-        GridBagConstraints version = new GridBagConstraints();
-        version.gridx = 1;
-        version.gridy = 1;
-        version.weightx = 1;
-        version.anchor = GridBagConstraints.LINE_START;
-        version.insets = new Insets(0, 0, 10, 0);
-        content.add(this.versionSelector, version);
+        this.addRow(
+                content,
+                1,
+                new JLabel(Localization.text("settings.java.download.java_version")),
+                this.versionSelector
+        );
 
         this.packageTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         this.packageTable.setFillsViewportHeight(true);

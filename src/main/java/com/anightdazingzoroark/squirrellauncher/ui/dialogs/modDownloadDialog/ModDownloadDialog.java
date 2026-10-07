@@ -220,18 +220,12 @@ public final class ModDownloadDialog extends AbstractDialog<Void> {
         GridBagConstraints projectsConstraints = new GridBagConstraints();
         projectsConstraints.gridx = 0;
         projectsConstraints.gridy = 0;
-        projectsConstraints.gridwidth = 3;
+        projectsConstraints.gridwidth = 2;
         projectsConstraints.weightx = 1;
         projectsConstraints.weighty = 1;
         projectsConstraints.fill = GridBagConstraints.BOTH;
         content.add(projectBrowser, projectsConstraints);
 
-        GridBagConstraints versionLabelConstraints = new GridBagConstraints();
-        versionLabelConstraints.gridx = 0;
-        versionLabelConstraints.gridy = 1;
-        versionLabelConstraints.anchor = GridBagConstraints.LINE_START;
-        versionLabelConstraints.insets = new Insets(10, 0, 0, 10);
-        content.add(this.versionLabel, versionLabelConstraints);
         this.fileSelector.setRenderer(new DefaultListCellRenderer() {
             @Override
             @NotNull
@@ -264,26 +258,17 @@ public final class ModDownloadDialog extends AbstractDialog<Void> {
                 return label;
             }
         });
-        GridBagConstraints version = new GridBagConstraints();
-        version.gridx = 1;
-        version.gridy = 1;
-        version.weightx = 1;
-        version.fill = GridBagConstraints.HORIZONTAL;
-        version.insets = new Insets(10, 0, 0, 0);
-        content.add(this.fileSelector, version);
-        GridBagConstraints select = new GridBagConstraints();
-        select.gridx = 2;
-        select.gridy = 1;
-        select.anchor = GridBagConstraints.LINE_END;
-        select.insets = new Insets(10, 8, 0, 0);
-        content.add(this.selectButton, select);
+        JPanel fileControls = new JPanel(new BorderLayout(8, 0));
+        fileControls.add(this.fileSelector, BorderLayout.CENTER);
+        fileControls.add(this.selectButton, BorderLayout.EAST);
+        this.addRow(content, 1, this.versionLabel, fileControls);
 
         this.progressBar.setIndeterminate(true);
         this.progressBar.setVisible(false);
         GridBagConstraints progress = new GridBagConstraints();
         progress.gridx = 0;
         progress.gridy = 2;
-        progress.gridwidth = 3;
+        progress.gridwidth = 2;
         progress.weightx = 1;
         progress.fill = GridBagConstraints.HORIZONTAL;
         progress.insets = new Insets(10, 0, 0, 0);
@@ -291,7 +276,7 @@ public final class ModDownloadDialog extends AbstractDialog<Void> {
         GridBagConstraints status = new GridBagConstraints();
         status.gridx = 0;
         status.gridy = 3;
-        status.gridwidth = 3;
+        status.gridwidth = 2;
         status.weightx = 1;
         status.fill = GridBagConstraints.HORIZONTAL;
         status.anchor = GridBagConstraints.LINE_START;
