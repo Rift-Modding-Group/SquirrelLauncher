@@ -15,10 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 public final class ModUpdateDialog extends AbstractDialog<Map<ManagedMod, ModDownloadFile>> {
-    public ModUpdateDialog(
-            @NotNull Window owner,
-            @NotNull Map<ManagedMod, List<ModDownloadFile>> availableUpdates
-    ) {
+    public ModUpdateDialog(@NotNull Window owner, @NotNull Map<ManagedMod, List<ModDownloadFile>> availableUpdates, boolean allSelected) {
         super(owner, Localization.text("instance.mods.dialog.update"));
         if (availableUpdates.isEmpty() || availableUpdates.values().stream().anyMatch(List::isEmpty)) {
             throw new IllegalArgumentException("At least one download file is required for each mod.");
@@ -28,14 +25,16 @@ public final class ModUpdateDialog extends AbstractDialog<Map<ManagedMod, ModDow
         boolean multipleMods = availableUpdates.size() > 1;
         Map.Entry<ManagedMod, List<ModDownloadFile>> firstUpdate = availableUpdates.entrySet().iterator().next();
         ModDownloadFile firstFile = firstUpdate.getValue().getFirst();
-        JLabel introductionLabel = new JLabel(Localization.text(
-                multipleMods
-                        ? "instance.mods.update.available_multiple"
-                        : firstFile.platform() == ModDownloadPlatform.GITHUB
-                                ? "instance.mods.update.available_files"
-                                : "instance.mods.update.available",
-                multipleMods ? availableUpdates.size() : firstUpdate.getKey().name()
-        ));
+
+        String introString;
+        if (allSelected) introString = Localization.text("instance.mods.update.all_available", availableUpdates.size());
+        else if (multipleMods) introString = Localization.text("instance.mods.update.available_multiple", availableUpdates.size());
+        else if (firstFile.platform() == ModDownloadPlatform.GITHUB) {
+            introString = Localization.text("instance.mods.update.available_files", firstUpdate.getKey().name());
+        }
+        else introString = Localization.text("instance.mods.update.available", firstUpdate.getKey().name());
+
+        JLabel introductionLabel = new JLabel(introString);
         Dimension introductionSize = new Dimension(700, introductionLabel.getPreferredSize().height);
         introductionLabel.setMinimumSize(introductionSize);
         introductionLabel.setPreferredSize(introductionSize);

@@ -37,6 +37,8 @@ public final class InstanceModsTab extends JPanel {
     @NotNull
     private final JButton downloadModsButton = new JButton(Localization.text("main.button.download_mods"));
     @NotNull
+    private final JButton updateModsButton = new JButton(Localization.text("main.button.update_mods"));
+    @NotNull
     private final JButton openModsFolderButton = new JButton(Localization.text("main.button.open_mods_folder"));
     @NotNull
     private final JButton openConfigsFolderButton = new JButton(Localization.text("main.button.open_configs_folder"));
@@ -175,6 +177,8 @@ public final class InstanceModsTab extends JPanel {
         actions.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
         JPanel leftActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         leftActions.add(this.downloadModsButton);
+        leftActions.add(Box.createHorizontalStrut(6));
+        leftActions.add(this.updateModsButton);
         actions.add(leftActions, BorderLayout.WEST);
         Box rightActions = Box.createHorizontalBox();
         rightActions.add(this.openModsFolderButton);
@@ -194,6 +198,7 @@ public final class InstanceModsTab extends JPanel {
         this.bottomContentWithInfoHeight = this.bottomContentNoInfoHeight + 8 + this.selectedModInfo.getPreferredSize().height;
 
         this.downloadModsButton.addActionListener(event -> this.launcherActions.downloadModsRequested());
+        this.updateModsButton.addActionListener(event -> this.launcherActions.updateModsRequested());
         this.openModsFolderButton.addActionListener(event -> this.launcherActions.openModsFolderRequested());
         this.openConfigsFolderButton.addActionListener(event -> this.launcherActions.openConfigsFolderRequested());
     }
@@ -202,7 +207,6 @@ public final class InstanceModsTab extends JPanel {
         this.activateModItem.addActionListener(event -> this.launcherActions.setModEnabledRequested());
         this.viewModPageItem.addActionListener(event -> this.launcherActions.openModPageRequested());
         this.checkModUpdatesItem.addActionListener(event -> this.launcherActions.checkModUpdateRequested());
-
         this.deleteModItem.addActionListener(event -> this.launcherActions.removeModRequested());
     }
 
@@ -251,6 +255,7 @@ public final class InstanceModsTab extends JPanel {
         this.modTable.setEnabled(available && supportsMods);
         this.modTableModel.editable = available && supportsMods;
         this.downloadModsButton.setEnabled(available && supportsMods);
+        this.updateModsButton.setEnabled(available && supportsMods);
         this.openModsFolderButton.setEnabled(available && supportsMods);
         this.openConfigsFolderButton.setEnabled(available && supportsMods);
     }
@@ -318,9 +323,7 @@ public final class InstanceModsTab extends JPanel {
 
         @Override
         public boolean isCellEditable(int row, int column) {
-            return this.editable
-                    && column == 0
-                    && !this.pendingModFileNames.contains(this.mods.get(row).fileName());
+            return this.editable && column == 0 && !this.pendingModFileNames.contains(this.mods.get(row).fileName());
         }
 
         @Override
@@ -332,9 +335,7 @@ public final class InstanceModsTab extends JPanel {
                 case 1 -> this.icons.get(row);
                 case 2 -> mod.name();
                 case 3 -> mod.version().isBlank() ? "—" : mod.version();
-                case 4 -> MODIFIED_TIME_FORMAT.format(
-                        Instant.ofEpochMilli(mod.lastModifiedMillis()).atZone(ZoneId.systemDefault())
-                );
+                case 4 -> MODIFIED_TIME_FORMAT.format(Instant.ofEpochMilli(mod.lastModifiedMillis()).atZone(ZoneId.systemDefault()));
                 default -> mod.provider() == null
                         ? Localization.text("mod.download.provider.unknown")
                         : Localization.text("mod.download.provider." + mod.provider().name().toLowerCase());

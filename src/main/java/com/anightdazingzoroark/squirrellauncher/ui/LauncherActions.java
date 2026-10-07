@@ -442,6 +442,17 @@ public final class LauncherActions {
         ).showModal();
     }
 
+    //for updating every single mod in an instance
+    public void updateModsRequested() {
+        MinecraftInstance instance = this.selectedInstance();
+        if (instance == null) return;
+        List<ManagedMod> mods = this.detailsPanel().modsTab().mods();
+        List<ManagedMod> updateableMods = mods.stream().filter(mod ->
+                mod.provider() != null && mod.providerProjectId() != null && mod.providerFileId() != null
+        ).toList();
+        this.updateMods(instance, updateableMods, true);
+    }
+
     //used for the checkbox in InstanceModsTab.ModTableModel
     public void setModEnabledRequested(@NotNull ManagedMod mod, boolean enable) {
         MinecraftInstance instance = this.selectedInstance();
@@ -518,109 +529,15 @@ public final class LauncherActions {
         }
     }
 
+    //for updating only selected mods in an instance
     public void checkModUpdateRequested() {
         MinecraftInstance instance = this.selectedInstance();
+        if (instance == null) return;
         List<ManagedMod> selectedMods = this.detailsPanel().modsTab().selectedMods();
         List<ManagedMod> updateableMods = selectedMods.stream().filter(mod ->
                 mod.provider() != null && mod.providerProjectId() != null && mod.providerFileId() != null
         ).toList();
-        if (instance == null || updateableMods.isEmpty()) return;
-        boolean multipleUpdateableMods = updateableMods.size() > 1;
-        this.launcherFrame.runTask(
-                instance.id(),
-                multipleUpdateableMods
-                        ? Localization.text("instance.mods.status.checking_updates", updateableMods.size())
-                        : Localization.text("instance.mods.status.checking_update", updateableMods.getFirst().name()),
-                () -> {
-                    Map<ManagedMod, List<ModDownloadFile>> updates = new LinkedHashMap<>();
-                    for (ManagedMod mod : updateableMods) {
-                        updates.put(mod, this.launcherService.findModUpdate(mod));
-                    }
-                    return updates;
-                },
-                updates -> {
-                    this.launcherFrame.setStatus(Localization.text("main.status.ready"));
-                    Map<ManagedMod, List<ModDownloadFile>> availableUpdates = new LinkedHashMap<>();
-                    for (Map.Entry<ManagedMod, List<ModDownloadFile>> update : updates.entrySet()) {
-                        if (!update.getValue().isEmpty()) availableUpdates.put(update.getKey(), update.getValue());
-                    }
-                    if (availableUpdates.isEmpty()) {
-                        JOptionPane.showMessageDialog(
-                                this.launcherFrame,
-                                Localization.text(multipleUpdateableMods
-                                        ? "instance.mods.update.none_multiple"
-                                        : "instance.mods.update.none", updateableMods.getFirst().name()),
-                                Localization.text("instance.mods.dialog.update"),
-                                JOptionPane.INFORMATION_MESSAGE
-                        );
-                        return;
-                    }
-                    Map<ManagedMod, ModDownloadFile> selectedUpdates = new ModUpdateDialog(
-                            this.launcherFrame,
-                            availableUpdates
-                    ).showModal();
-                    if (selectedUpdates == null || selectedUpdates.isEmpty()) return;
-                    this.launcherFrame.runTask(
-                            instance.id(),
-                            selectedUpdates.size() > 1
-                                    ? Localization.text(
-                                            "instance.mods.status.downloading_updates",
-                                            selectedUpdates.size()
-                                    )
-                                    : Localization.text(
-                                            "instance.mods.status.downloading_update",
-                                            selectedUpdates.keySet().iterator().next().name()
-                                    ),
-                            true,
-                            () -> {
-                                int updatedCount = 0;
-                                Exception failure = null;
-                                for (Map.Entry<ManagedMod, ModDownloadFile> selectedUpdate : selectedUpdates.entrySet()) {
-                                    if (Thread.currentThread().isInterrupted()) {
-                                        throw new InterruptedException("Mod updates were interrupted.");
-                                    }
-                                    try {
-                                        this.launcherService.updateMod(
-                                                instance,
-                                                selectedUpdate.getKey(),
-                                                selectedUpdate.getValue()
-                                        );
-                                        updatedCount++;
-                                    }
-                                    catch (InterruptedException exception) {
-                                        throw exception;
-                                    }
-                                    catch (Exception exception) {
-                                        if (failure == null) failure = exception;
-                                        else failure.addSuppressed(exception);
-                                    }
-                                }
-                                return new ModBatchResult(updatedCount, failure);
-                            },
-                            result -> {
-                                this.refreshMods(instance);
-                                if (result.failure() != null) {
-                                    this.launcherFrame.showError(
-                                            Localization.text("main.error.operation_failed"),
-                                            result.failure(),
-                                            instance.id()
-                                    );
-                                }
-                                else {
-                                    this.launcherFrame.setStatus(selectedUpdates.size() > 1
-                                            ? Localization.text(
-                                                    "instance.mods.status.updated_multiple",
-                                                    result.completedCount()
-                                            )
-                                            : Localization.text(
-                                                    "instance.mods.status.updated",
-                                                    selectedUpdates.keySet().iterator().next().name()
-                                            ));
-                                }
-                            }
-                    );
-                }
-        );
+        this.updateMods(instance, updateableMods, false);
     }
 
     public void removeModRequested() {
@@ -816,12 +733,124 @@ public final class LauncherActions {
         }.execute();
     }
 
+    //the end all be all mod update method
+    private void updateMods(@NotNull MinecraftInstance instance, @NotNull List<ManagedMod> updateableMods, boolean allSelected) {
+        if (updateableMods.isEmpty()) return;
+        boolean multipleUpdateableMods = updateableMods.size() > 1;
+
+        //---set status string---
+        String statusString;
+        if (allSelected) statusString = Localization.text("instance.mods.status.all_checking_update", updateableMods.size());
+        else if (multipleUpdateableMods) statusString = Localization.text("instance.mods.status.checking_updates", updateableMods.size());
+        else statusString = Localization.text("instance.mods.status.checking_update", updateableMods.getFirst().name());
+
+        //---now look for le updates---
+        this.launcherFrame.runTask(
+                instance.id(), statusString,
+                () -> {
+                    Map<ManagedMod, List<ModDownloadFile>> updates = new LinkedHashMap<>();
+                    for (ManagedMod mod : updateableMods) {
+                        updates.put(mod, this.launcherService.findModUpdate(mod));
+                    }
+                    return updates;
+                },
+                updates -> {
+                    this.launcherFrame.setStatus(Localization.text("main.status.ready"));
+                    Map<ManagedMod, List<ModDownloadFile>> availableUpdates = new LinkedHashMap<>();
+                    for (Map.Entry<ManagedMod, List<ModDownloadFile>> update : updates.entrySet()) {
+                        if (!update.getValue().isEmpty()) availableUpdates.put(update.getKey(), update.getValue());
+                    }
+
+                    //everything is up to date
+                    if (availableUpdates.isEmpty()) {
+                        String upToDateMessage;
+                        if (allSelected) upToDateMessage = Localization.text("instance.mods.update.all_none");
+                        else if (multipleUpdateableMods) upToDateMessage = Localization.text("instance.mods.update.none_multiple");
+                        else upToDateMessage = Localization.text("instance.mods.update.none", updateableMods.getFirst().name());
+
+                        JOptionPane.showMessageDialog(
+                                this.launcherFrame,
+                                upToDateMessage,
+                                Localization.text("instance.mods.dialog.update"),
+                                JOptionPane.INFORMATION_MESSAGE
+                        );
+                    }
+                    //updates found
+                    else {
+                        Map<ManagedMod, ModDownloadFile> selectedUpdates = new ModUpdateDialog(this.launcherFrame, availableUpdates, allSelected).showModal();
+                        if (selectedUpdates == null || selectedUpdates.isEmpty()) return;
+
+                        String downloadUpdateStatusString;
+                        if (selectedUpdates.size() > 1) {
+                            downloadUpdateStatusString = Localization.text(
+                                    "instance.mods.status.downloading_updates",
+                                    selectedUpdates.size()
+                            );
+                        }
+                        else {
+                            downloadUpdateStatusString = Localization.text(
+                                    "instance.mods.status.downloading_update",
+                                    selectedUpdates.keySet().iterator().next().name()
+                            );
+                        }
+                        this.launcherFrame.runTask(
+                                instance.id(), downloadUpdateStatusString,
+                                true,
+                                () -> {
+                                    int updatedCount = 0;
+                                    Exception failure = null;
+                                    for (Map.Entry<ManagedMod, ModDownloadFile> selectedUpdate : selectedUpdates.entrySet()) {
+                                        if (Thread.currentThread().isInterrupted()) {
+                                            throw new InterruptedException("Mod updates were interrupted.");
+                                        }
+                                        try {
+                                            this.launcherService.updateMod(instance, selectedUpdate.getKey(), selectedUpdate.getValue());
+                                            updatedCount++;
+                                        }
+                                        catch (InterruptedException exception) {
+                                            throw exception;
+                                        }
+                                        catch (Exception exception) {
+                                            if (failure == null) failure = exception;
+                                            else failure.addSuppressed(exception);
+                                        }
+                                    }
+                                    return new ModBatchResult(updatedCount, failure);
+                                },
+                                result -> {
+                                    this.refreshMods(instance);
+                                    if (result.failure() != null) {
+                                        this.launcherFrame.showError(
+                                                Localization.text("main.error.operation_failed"),
+                                                result.failure(),
+                                                instance.id()
+                                        );
+                                    }
+                                    else {
+                                        String updatedModsStatusString;
+                                        if (selectedUpdates.size() > 1) {
+                                            updatedModsStatusString = Localization.text(
+                                                    "instance.mods.status.updated_multiple",
+                                                    result.completedCount()
+                                            );
+                                        }
+                                        else {
+                                            updatedModsStatusString = Localization.text(
+                                                    "instance.mods.status.updated",
+                                                    selectedUpdates.keySet().iterator().next().name()
+                                            );
+                                        }
+                                        this.launcherFrame.setStatus(updatedModsStatusString);
+                                    }
+                                }
+                        );
+                    }
+                }
+        );
+    }
+
     @Nullable
-    private String promptForInstanceName(
-            @NotNull String title,
-            @NotNull String prompt,
-            @NotNull String initialValue
-    ) {
+    private String promptForInstanceName(@NotNull String title, @NotNull String prompt, @NotNull String initialValue) {
         String name = (String) JOptionPane.showInputDialog(
                 this.launcherFrame,
                 prompt,
